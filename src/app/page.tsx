@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { siteConfig } from '@/config/site';
-import { ArrowRight, MessageSquare, ThumbsUp, UserCog, Shield, Newspaper, Loader2 } from 'lucide-react'; // Changed UserShield
+import { ArrowRight, MessageSquare, ThumbsUp, UserCog, Shield, Newspaper, Loader2 } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 
 // --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
@@ -86,7 +86,7 @@ function AdminNewsSiteView() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
-              <UserCog className="h-6 w-6 text-primary" /> {/* Changed from UserShield */}
+              <UserCog className="h-6 w-6 text-primary" />
               Gestione Utenti
             </CardTitle>
           </CardHeader>
@@ -98,7 +98,7 @@ function AdminNewsSiteView() {
          <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
-              <ThumbsUp className="h-6 w-6 text-primary" /> {/* Potremmo usare BarChart per Analytics */}
+              <ThumbsUp className="h-6 w-6 text-primary" /> 
               Statistiche Sito
             </CardTitle>
           </CardHeader>
@@ -142,7 +142,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/40">
+    <div className="min-h-screen flex flex-col bg-muted/40" data-page-id="home-page-main-wrapper">
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
@@ -153,7 +153,7 @@ export default function HomePage() {
               <>
                 {isAdmin && (
                   <span className="hidden md:inline-flex items-center gap-1 text-sm font-medium text-accent-foreground bg-accent px-2 py-1 rounded-md mr-2">
-                    <Shield className="h-4 w-4" /> {/* Changed from UserShield */}
+                    <Shield className="h-4 w-4" />
                     Admin Mode
                   </span>
                 )}
@@ -161,7 +161,6 @@ export default function HomePage() {
                 <Button variant="outline" size="sm" asChild>
                   <Link href="/dashboard">Dashboard</Link>
                 </Button>
-                {/* Il logout è gestito dalla AppLayout, a cui si accede tramite /dashboard */}
               </>
             ) : (
               <>
