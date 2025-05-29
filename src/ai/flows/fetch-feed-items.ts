@@ -18,17 +18,18 @@ const FetchFeedItemsInputSchema = z.object({
 });
 export type FetchFeedItemsInput = z.infer<typeof FetchFeedItemsInputSchema>;
 
-export const FeedItemSchema = z.object({
+// FeedItemSchema is now internal and not exported directly
+const FeedItemSchema = z.object({
   title: z.string().optional().describe('Il titolo dellarticolo del feed.'),
   link: z.string().optional().describe("Il link all'articolo originale del feed."),
   pubDate: z.string().optional().describe('La data di pubblicazione dellarticolo.'),
   content: z.string().optional().describe('Il contenuto o snippet dellarticolo del feed.'),
   guid: z.string().optional().describe('Un identificatore univoco per larticolo del feed.')
 });
-export type FeedItem = z.infer<typeof FeedItemSchema>;
+export type FeedItem = z.infer<typeof FeedItemSchema>; // Exporting the type is fine
 
 const FetchFeedItemsOutputSchema = z.object({
-  items: z.array(FeedItemSchema).describe('Un elenco di articoli recuperati dal feed.'),
+  items: z.array(FeedItemSchema).describe('Un elenco di articoli recuperati dal feed.'), // Uses the internal FeedItemSchema
   error: z.string().optional().describe("Messaggio di errore se il recupero o il parsing fallisce.")
 });
 export type FetchFeedItemsOutput = z.infer<typeof FetchFeedItemsOutputSchema>;
