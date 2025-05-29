@@ -23,7 +23,8 @@ const ProcessBlogPostInputSchema = z.object({
 });
 export type ProcessBlogPostInput = z.infer<typeof ProcessBlogPostInputSchema>;
 
-const ProcessBlogPostOutputSchema = z.object({
+// Schema Zod per l'output - reso interno
+const ProcessBlogPostOutputSchemaInternal = z.object({
   processedTitle: z.string().describe('Il titolo del post ottimizzato per SEO.'),
   processedContent: z
     .string()
@@ -35,7 +36,7 @@ const ProcessBlogPostOutputSchema = z.object({
     .array(z.string())
     .describe('Un elenco di 3-5 parole chiave SEO rilevanti.'),
 });
-export type ProcessBlogPostOutput = z.infer<typeof ProcessBlogPostOutputSchema>;
+export type ProcessBlogPostOutput = z.infer<typeof ProcessBlogPostOutputSchemaInternal>;
 
 // Prompt per la riscrittura e ottimizzazione del contenuto
 const optimizeContentPrompt = ai.definePrompt({
@@ -79,7 +80,7 @@ const processBlogPostFlow = ai.defineFlow(
   {
     name: 'processBlogPostFlow',
     inputSchema: ProcessBlogPostInputSchema,
-    outputSchema: ProcessBlogPostOutputSchema,
+    outputSchema: ProcessBlogPostOutputSchemaInternal, // Usa lo schema interno
   },
   async ({ originalTitle, originalContent, category }) => {
     // 1. Genera titolo ottimizzato

@@ -11,11 +11,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink } from 'lucide-react'; // Aggiunte ListChecks, ExternalLink
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context"; 
 import { processBlogPost, type ProcessBlogPostInput, type ProcessBlogPostOutput } from "@/ai/flows/process-blog-post";
-import { fetchFeedItems, type FetchFeedItemsInput, type FetchFeedItemsOutput, type FeedItem } from "@/ai/flows/fetch-feed-items"; // Importa per i feed
+import { syndicateAndProcessContent, type SyndicateAndProcessContentInput, type SyndicateAndProcessContentOutput, type ProcessedArticleData } from "@/ai/flows/syndicate-and-process-content";
 import { useToast } from "@/hooks/use-toast";
 
 // --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
@@ -192,15 +192,19 @@ function AdminNewsSiteView() {
 
   const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
 
+  // State per l'elaborazione manuale AI
   const [originalPostTitle, setOriginalPostTitle] = useState("");
   const [originalPostContent, setOriginalPostContent] = useState("");
-  const [postCategory, setPostCategory] = useState("");
-  const [isProcessingPost, setIsProcessingPost] = useState(false);
-  const [processedPostData, setProcessedPostData] = useState<ProcessBlogPostOutput | null>(null);
+  const [postCategory, setPostCategory] = useState(""); // Categoria per l'elaborazione manuale
+  const [isProcessingPostManual, setIsProcessingPostManual] = useState(false);
+  const [processedPostDataManual, setProcessedPostDataManual] = useState<ProcessBlogPostOutput | null>(null);
 
+  // State per l'importazione e l'elaborazione automatica da feed
   const [feedUrl, setFeedUrl] = useState("");
-  const [isFetchingFeed, setIsFetchingFeed] = useState(false);
-  const [fetchedFeedItems, setFetchedFeedItems] = useState<FeedItem[]>([]);
+  const [defaultFeedCategory, setDefaultFeedCategory] = useState(""); // Categoria per gli articoli del feed
+  const [isProcessingFeed, setIsProcessingFeed] = useState(false);
+  const [processedFeedArticles, setProcessedFeedArticles] = useState<ProcessedArticleData[]>([]);
+  const [feedProcessingErrors, setFeedProcessingErrors] = useState<{originalTitle?: string, error: string}[]>([]);
 
 
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
@@ -238,13 +242,13 @@ function AdminNewsSiteView() {
     setTimeout(() => setIsSavingCustomizations(false), 500); 
   };
 
-  const handleProcessPost = async () => {
+  const handleProcessPostManually = async () => {
     if (!originalPostTitle || !originalPostContent || !postCategory) {
-      toast({ title: "Campi Mancanti", description: "Per favore, compila titolo, contenuto e categoria.", variant: "destructive" });
+      toast({ title: "Campi Mancanti", description: "Per favore, compila titolo, contenuto e categoria per l'elaborazione manuale.", variant: "destructive" });
       return;
     }
-    setIsProcessingPost(true);
-    setProcessedPostData(null);
+    setIsProcessingPostManual(true);
+    setProcessedPostDataManual(null);
     try {
       const input: ProcessBlogPostInput = {
         originalTitle: originalPostTitle,
@@ -252,49 +256,70 @@ function AdminNewsSiteView() {
         category: postCategory,
       };
       const result = await processBlogPost(input);
-      setProcessedPostData(result);
-      toast({ title: "Post Elaborato!", description: "Il post è stato processato con successo dall'AI." });
+      setProcessedPostDataManual(result);
+      toast({ title: "Post Elaborato Manualmente!", description: "Il post è stato processato con successo dall'AI." });
     } catch (error) {
-      console.error("Errore durante l'elaborazione del post:", error);
-      toast({ title: "Errore Elaborazione", description: (error as Error).message || "Si è verificato un errore.", variant: "destructive" });
+      console.error("Errore durante l'elaborazione manuale del post:", error);
+      toast({ title: "Errore Elaborazione Manuale", description: (error as Error).message || "Si è verificato un errore.", variant: "destructive" });
     } finally {
-      setIsProcessingPost(false);
+      setIsProcessingPostManual(false);
     }
   };
 
-  const handleFetchFeed = async () => {
+  const handleSyndicateAndProcess = async () => {
     if (!feedUrl) {
-      toast({ title: "URL Mancante", description: "Per favore, inserisci un URL per il feed.", variant: "destructive" });
+      toast({ title: "URL Feed Mancante", description: "Per favore, inserisci un URL per il feed.", variant: "destructive" });
       return;
     }
-    setIsFetchingFeed(true);
-    setFetchedFeedItems([]);
+    if (!defaultFeedCategory) {
+      toast({ title: "Categoria Mancante", description: "Per favore, inserisci una categoria predefinita per gli articoli del feed.", variant: "destructive" });
+      return;
+    }
+    setIsProcessingFeed(true);
+    setProcessedFeedArticles([]);
+    setFeedProcessingErrors([]);
     try {
-      const input: FetchFeedItemsInput = { feedUrl };
-      const result: FetchFeedItemsOutput = await fetchFeedItems(input);
-      if (result.error) {
-        toast({ title: "Errore Caricamento Feed", description: result.error, variant: "destructive" });
-        setFetchedFeedItems([]);
-      } else {
-        setFetchedFeedItems(result.items);
-        toast({ title: "Feed Caricato!", description: `Trovati ${result.items.length} articoli.` });
+      const input: SyndicateAndProcessContentInput = { feedUrl, defaultCategory: defaultFeedCategory };
+      const result: SyndicateAndProcessContentOutput = await syndicateAndProcessContent(input);
+      
+      setProcessedFeedArticles(result.processedArticles);
+      if (result.errors && result.errors.length > 0) {
+        setFeedProcessingErrors(result.errors);
+        toast({ 
+          title: "Feed Elaborato con Errori", 
+          description: `Completato, ma ${result.errors.length} articoli hanno avuto problemi. Controlla i dettagli.`, 
+          variant: "destructive" 
+        });
+      } else if (result.processedArticles.length === 0) {
+        toast({ title: "Nessun Articolo Elaborato", description: "Il feed potrebbe essere vuoto o gli articoli non idonei.", variant: "default" });
+      }
+       else {
+        toast({ title: "Feed Elaborato!", description: `Processati ${result.processedArticles.length} articoli.` });
       }
     } catch (error) {
-      console.error("Errore durante il recupero del feed:", error);
-      toast({ title: "Errore Caricamento Feed", description: (error as Error).message || "Si è verificato un errore.", variant: "destructive" });
+      console.error("Errore durante l'importazione e l'elaborazione del feed:", error);
+      toast({ title: "Errore Elaborazione Feed", description: (error as Error).message || "Si è verificato un errore critico.", variant: "destructive" });
+      setFeedProcessingErrors([{error: (error as Error).message || "Errore critico sconosciuto."}]);
     } finally {
-      setIsFetchingFeed(false);
+      setIsProcessingFeed(false);
     }
   };
 
-  const handlePrepareForAI = (item: FeedItem) => {
-    setOriginalPostTitle(item.title || "");
-    setOriginalPostContent(item.content || "");
-    // La categoria dovrà essere impostata manualmente o tramite un'altra logica
-    setPostCategory(""); // Resetta la categoria
-    toast({ title: "Articolo Pronto", description: "Titolo e contenuto caricati nel modulo di elaborazione AI."});
-    // Potrebbe essere utile scrollare alla sezione di elaborazione AI
-    document.getElementById('ai-processing-card')?.scrollIntoView({ behavior: 'smooth' });
+  const handleReviewAndEditProcessedArticle = (article: ProcessedArticleData) => {
+    setOriginalPostTitle(article.originalTitleFromFeed || article.processedTitle); // Priorità al titolo originale del feed se disponibile
+    setOriginalPostContent(article.processedContent);
+    setPostCategory(defaultFeedCategory); // Usa la categoria con cui è stato processato il feed
+    
+    // Popola processedPostDataManual per mostrare i risultati nella card di elaborazione manuale
+    setProcessedPostDataManual({
+      processedTitle: article.processedTitle,
+      processedContent: article.processedContent,
+      metaDescription: article.metaDescription,
+      seoKeywords: article.seoKeywords,
+    });
+
+    toast({ title: "Articolo Caricato per Revisione", description: "I dati elaborati sono pronti nell'editor manuale."});
+    document.getElementById('ai-manual-processing-card')?.scrollIntoView({ behavior: 'smooth' });
   };
 
 
@@ -310,41 +335,69 @@ function AdminNewsSiteView() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Rss className="h-6 w-6 text-primary" />
-                Gestione Feed URL
+                Importa ed Elabora Feed
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="feedUrlInput" className="text-muted-foreground">URL Feed RSS/Atom</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input 
-                    id="feedUrlInput" 
-                    type="url" 
-                    placeholder="https://esempio.com/feed.xml" 
-                    className="flex-grow"
-                    value={feedUrl}
-                    onChange={(e) => setFeedUrl(e.target.value)}
-                    disabled={isFetchingFeed}
-                  />
-                  <Button onClick={handleFetchFeed} disabled={isFetchingFeed}>
-                    {isFetchingFeed ? <Loader2 className="animate-spin h-4 w-4" /> : "Carica"}
-                  </Button> 
-                </div>
+                <Input 
+                  id="feedUrlInput" 
+                  type="url" 
+                  placeholder="https://esempio.com/feed.xml" 
+                  value={feedUrl}
+                  onChange={(e) => setFeedUrl(e.target.value)}
+                  disabled={isProcessingFeed}
+                  className="mt-1"
+                />
               </div>
-              {fetchedFeedItems.length > 0 && (
+              <div>
+                <Label htmlFor="defaultFeedCategoryInput" className="text-muted-foreground">Categoria Predefinita per il Feed</Label>
+                <Input 
+                  id="defaultFeedCategoryInput" 
+                  type="text" 
+                  placeholder="Es: Novità Tecnologiche" 
+                  value={defaultFeedCategory}
+                  onChange={(e) => setDefaultFeedCategory(e.target.value)}
+                  disabled={isProcessingFeed}
+                  className="mt-1"
+                />
+              </div>
+              <Button onClick={handleSyndicateAndProcess} disabled={isProcessingFeed} className="w-full">
+                {isProcessingFeed ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2"/>}
+                Importa ed Elabora Feed
+              </Button> 
+              
+              {feedProcessingErrors.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <h4 className="font-semibold text-sm text-destructive mb-1">Errori Durante Elaborazione Feed:</h4>
+                  {feedProcessingErrors.map((err, index) => (
+                    <Card key={`error-${index}`} className="p-2 text-xs bg-destructive/10 border-destructive/30">
+                      {err.originalTitle && <p className="font-medium truncate" title={err.originalTitle}>Articolo: {err.originalTitle}</p>}
+                      <p className="text-destructive">{err.error}</p>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {processedFeedArticles.length > 0 && (
                 <div className="mt-4 space-y-2 max-h-96 overflow-y-auto border p-2 rounded-md">
-                  <h4 className="font-semibold text-sm mb-2">Articoli dal Feed:</h4>
-                  {fetchedFeedItems.map((item, index) => (
-                    <Card key={item.guid || index} className="p-2 text-sm bg-muted/50">
+                  <h4 className="font-semibold text-sm mb-2">Articoli Elaborati dal Feed:</h4>
+                  {processedFeedArticles.map((article, index) => (
+                    <Card key={article.originalLink || index} className="p-2 text-sm bg-muted/50">
                       <div className="flex justify-between items-start">
-                        <div>
-                            <p className="font-medium truncate" title={item.title}>{item.title || "Nessun Titolo"}</p>
-                            {item.pubDate && <p className="text-xs text-muted-foreground">{new Date(item.pubDate).toLocaleDateString()}</p>}
+                        <div className="flex-grow overflow-hidden">
+                            <p className="font-medium truncate text-xs text-muted-foreground" title={article.originalTitleFromFeed}>
+                                Orig: {article.originalTitleFromFeed || "N/D"}
+                            </p>
+                            <p className="font-semibold truncate" title={article.processedTitle}>
+                                Elaborato: {article.processedTitle || "Nessun Titolo"}
+                            </p>
                         </div>
-                        <div className="flex gap-1">
-                            {item.link && (
+                        <div className="flex gap-1 shrink-0 ml-2">
+                            {article.originalLink && (
                                 <Button variant="outline" size="icon" className="h-7 w-7" asChild>
-                                    <a href={item.link} target="_blank" rel="noopener noreferrer" title="Apri originale">
+                                    <a href={article.originalLink} target="_blank" rel="noopener noreferrer" title="Apri originale">
                                         <ExternalLink className="h-3.5 w-3.5" />
                                     </a>
                                 </Button>
@@ -353,10 +406,10 @@ function AdminNewsSiteView() {
                                 variant="outline" 
                                 size="icon" 
                                 className="h-7 w-7"
-                                onClick={() => handlePrepareForAI(item)}
-                                title="Prepara per AI"
+                                onClick={() => handleReviewAndEditProcessedArticle(article)}
+                                title="Rivedi ed Edita Articolo Elaborato"
                             >
-                                <ListChecks className="h-3.5 w-3.5" />
+                                <FileEdit className="h-3.5 w-3.5" />
                             </Button>
                         </div>
                       </div>
@@ -468,71 +521,71 @@ function AdminNewsSiteView() {
         </aside>
 
         <section className="space-y-6">
-           <Card className="shadow-lg" id="ai-processing-card">
+           <Card className="shadow-lg" id="ai-manual-processing-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Sparkles className="h-6 w-6 text-primary" />
-                Elaborazione Post con AI
+                Editor & Elaborazione Manuale Post
               </CardTitle>
               <CardDescription>
-                Carica un articolo da un feed o inserisci manualmente il testo, poi elaboralo con l'AI per ottimizzare titolo, contenuto, meta description e keywords SEO.
+                Rivedi un articolo elaborato automaticamente o inserisci manualmente il testo, poi elaboralo con l'AI per ottimizzare titolo, contenuto, meta description e keywords SEO.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="originalPostTitle">Titolo Originale</Label>
+                <Label htmlFor="originalPostTitle">Titolo Articolo</Label>
                 <Input 
                   id="originalPostTitle" 
                   value={originalPostTitle} 
                   onChange={(e) => setOriginalPostTitle(e.target.value)} 
                   placeholder="Es: Nuova auto elettrica in arrivo" 
-                  disabled={isProcessingPost}
+                  disabled={isProcessingPostManual}
                 />
               </div>
               <div>
-                <Label htmlFor="postCategory">Categoria</Label>
+                <Label htmlFor="postCategory">Categoria Articolo</Label>
                 <Input 
                   id="postCategory" 
                   value={postCategory} 
                   onChange={(e) => setPostCategory(e.target.value)} 
                   placeholder="Es: Novità Auto, Guide, Recensioni" 
-                  disabled={isProcessingPost}
+                  disabled={isProcessingPostManual}
                 />
               </div>
               <div>
-                <Label htmlFor="originalPostContent">Contenuto Originale (min 50 caratteri)</Label>
+                <Label htmlFor="originalPostContent">Contenuto Articolo (min 50 caratteri)</Label>
                 <Textarea 
                   id="originalPostContent" 
                   value={originalPostContent} 
                   onChange={(e) => setOriginalPostContent(e.target.value)} 
                   rows={6} 
-                  placeholder="Incolla qui il contenuto originale del post..." 
-                  disabled={isProcessingPost}
+                  placeholder="Incolla qui il contenuto originale o elaborato del post..." 
+                  disabled={isProcessingPostManual}
                 />
               </div>
-              <Button onClick={handleProcessPost} disabled={isProcessingPost} className="w-full">
-                {isProcessingPost ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                Elabora Post con AI
+              <Button onClick={handleProcessPostManually} disabled={isProcessingPostManual} className="w-full">
+                {isProcessingPostManual ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                (Ri)Elabora Post con AI
               </Button>
-              {processedPostData && (
+              {processedPostDataManual && (
                 <div className="mt-6 space-y-4 border-t pt-4">
                   <div>
                     <Label className="font-semibold">Titolo Elaborato:</Label>
-                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{processedPostData.processedTitle}</p>
+                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{processedPostDataManual.processedTitle}</p>
                   </div>
                   <div>
                     <Label className="font-semibold">Meta Description:</Label>
-                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{processedPostData.metaDescription}</p>
+                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{processedPostDataManual.metaDescription}</p>
                   </div>
                   <div>
                     <Label className="font-semibold">Keywords SEO:</Label>
-                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{processedPostData.seoKeywords.join(', ')}</p>
+                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{processedPostDataManual.seoKeywords.join(', ')}</p>
                   </div>
                   <div>
-                    <Label className="font-semibold">Contenuto Elaborato:</Label>
+                    <Label className="font-semibold">Contenuto Elaborato (dall'AI):</Label>
                     <Textarea 
                       readOnly 
-                      value={processedPostData.processedContent} 
+                      value={processedPostDataManual.processedContent} 
                       rows={10} 
                       className="mt-1 bg-muted text-sm"
                     />
@@ -544,7 +597,7 @@ function AdminNewsSiteView() {
 
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle>Attività Recenti del Sito</CardTitle>
+              <CardTitle>Attività Recenti del Sito (Placeholder)</CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2 text-sm text-muted-foreground">
@@ -623,7 +676,6 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                {/* Pulsante Registrati non più mostrato */}
               </>
             )}
           </nav>
