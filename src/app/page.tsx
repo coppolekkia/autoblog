@@ -7,14 +7,21 @@ import Image from 'next/image';
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context"; 
+import { processBlogPost, type ProcessBlogPostInput, type ProcessBlogPostOutput } from "@/ai/flows/process-blog-post";
+import { useToast } from "@/hooks/use-toast";
 
+// --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
+// !! IMPORTANTE !! Questo metodo NON è sicuro per la produzione.
+// Usare Firebase Custom Claims per una gestione sicura dei ruoli.
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
+// --- FINE IDENTIFICAZIONE ADMIN TEMPORANEA ---
 
 const placeholderPosts = [
   {
@@ -22,6 +29,7 @@ const placeholderPosts = [
     title: "Le Ultime Novità nel Mondo Automotive del 2024",
     slug: "novita-automotive-2024",
     excerpt: "Scopri le tendenze più calde, i modelli più attesi e le tecnologie emergenti che stanno definendo il futuro dell'auto.",
+    content: "Questo è il contenuto completo dell'articolo sulle novità automotive del 2024. Qui troverai un'analisi approfondita delle nuove tecnologie, dei design più innovativi e delle aspettative di mercato per i prossimi anni. Parleremo di veicoli elettrici, guida autonoma, sostenibilità e molto altro ancora. Continua a leggere per scoprire cosa ci riserva il futuro!",
     imageUrl: "https://placehold.co/700x400.png",
     imageHint: "modern car concept",
     date: "15 Luglio 2024",
@@ -35,6 +43,7 @@ const placeholderPosts = [
     title: "Guida Completa alla Manutenzione della Tua Auto Elettrica",
     slug: "manutenzione-auto-elettrica",
     excerpt: "Consigli pratici e suggerimenti per mantenere la tua auto elettrica in perfette condizioni e massimizzare la durata della batteria.",
+    content: "La manutenzione di un'auto elettrica differisce significativamente da quella di un veicolo tradizionale. In questa guida completa, esploreremo tutti gli aspetti: dalla cura della batteria, ai controlli dei sistemi elettrici, fino alla manutenzione di freni e pneumatici. Imparerai come estendere la vita della tua auto e viaggiare in sicurezza.",
     imageUrl: "https://placehold.co/700x400.png",
     imageHint: "electric car maintenance",
     date: "10 Luglio 2024",
@@ -48,6 +57,7 @@ const placeholderPosts = [
     title: "I SUV più Affidabili sul Mercato: Classifica e Recensioni",
     slug: "suv-affidabili-recensioni",
     excerpt: "Una panoramica dettagliata dei SUV che si distinguono per affidabilità, sicurezza e prestazioni. Trova il modello giusto per te.",
+    content: "Scegliere un SUV affidabile è fondamentale per la tranquillità e la sicurezza della famiglia. In questo articolo, analizziamo i modelli più recenti, confrontando test di affidabilità, valutazioni di sicurezza, feedback dei proprietari e costi di manutenzione. Scopri la nostra classifica e le recensioni dettagliate per fare la scelta migliore.",
     imageUrl: "https://placehold.co/700x400.png",
     imageHint: "suv lineup",
     date: "5 Luglio 2024",
@@ -89,6 +99,8 @@ function AdminNewsSiteView() {
     applyCustomization 
   } = useSiteCustomization();
 
+  const { toast } = useToast();
+
   const [localTitle, setLocalTitle] = useState(currentGlobalTitle);
   
   const [localBgHue, setLocalBgHue] = useState(currentGlobalBgHue);
@@ -107,49 +119,73 @@ function AdminNewsSiteView() {
   const [localPrimaryFgSaturation, setLocalPrimaryFgSaturation] = useState(currentGlobalPrimaryFgSaturation);
   const [localPrimaryFgLightness, setLocalPrimaryFgLightness] = useState(currentGlobalPrimaryFgLightness);
 
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
+
+  // Stati per il form di elaborazione post AI
+  const [originalPostTitle, setOriginalPostTitle] = useState("");
+  const [originalPostContent, setOriginalPostContent] = useState("");
+  const [postCategory, setPostCategory] = useState("");
+  const [isProcessingPost, setIsProcessingPost] = useState(false);
+  const [processedPostData, setProcessedPostData] = useState<ProcessBlogPostOutput | null>(null);
+
 
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
-  
   useEffect(() => setLocalBgHue(currentGlobalBgHue), [currentGlobalBgHue]);
   useEffect(() => setLocalBgSaturation(currentGlobalBgSaturation), [currentGlobalBgSaturation]);
   useEffect(() => setLocalBgLightness(currentGlobalBgLightness), [currentGlobalBgLightness]);
-
   useEffect(() => setLocalCardHue(currentGlobalCardHue), [currentGlobalCardHue]);
   useEffect(() => setLocalCardSaturation(currentGlobalCardSaturation), [currentGlobalCardSaturation]);
   useEffect(() => setLocalCardLightness(currentGlobalCardLightness), [currentGlobalCardLightness]);
-
   useEffect(() => setLocalPrimaryHue(currentGlobalPrimaryHue), [currentGlobalPrimaryHue]);
   useEffect(() => setLocalPrimarySaturation(currentGlobalPrimarySaturation), [currentGlobalPrimarySaturation]);
   useEffect(() => setLocalPrimaryLightness(currentGlobalPrimaryLightness), [currentGlobalPrimaryLightness]);
-
   useEffect(() => setLocalPrimaryFgHue(currentGlobalPrimaryFgHue), [currentGlobalPrimaryFgHue]);
   useEffect(() => setLocalPrimaryFgSaturation(currentGlobalPrimaryFgSaturation), [currentGlobalPrimaryFgSaturation]);
   useEffect(() => setLocalPrimaryFgLightness(currentGlobalPrimaryFgLightness), [currentGlobalPrimaryFgLightness]);
 
-
-  const handleSaveChanges = () => {
-    setIsSaving(true);
+  const handleSaveCustomizations = () => {
+    setIsSavingCustomizations(true);
     setSiteTitleState(localTitle);
-    
     setBgHueState(localBgHue);
     setBgSaturationState(localBgSaturation);
     setBgLightnessState(localBgLightness);
-
     setCardHueState(localCardHue);
     setCardSaturationState(localCardSaturation);
     setCardLightnessState(localCardLightness);
-
     setPrimaryHueState(localPrimaryHue);
     setPrimarySaturationState(localPrimarySaturation);
     setPrimaryLightnessState(localPrimaryLightness);
-
     setPrimaryFgHueState(localPrimaryFgHue);
     setPrimaryFgSaturationState(localPrimaryFgSaturation);
     setPrimaryFgLightnessState(localPrimaryFgLightness);
     
     applyCustomization(); 
-    setTimeout(() => setIsSaving(false), 500); 
+    toast({ title: "Personalizzazioni Salvate", description: "Le modifiche sono state applicate." });
+    setTimeout(() => setIsSavingCustomizations(false), 500); 
+  };
+
+  const handleProcessPost = async () => {
+    if (!originalPostTitle || !originalPostContent || !postCategory) {
+      toast({ title: "Campi Mancanti", description: "Per favore, compila titolo, contenuto e categoria.", variant: "destructive" });
+      return;
+    }
+    setIsProcessingPost(true);
+    setProcessedPostData(null);
+    try {
+      const input: ProcessBlogPostInput = {
+        originalTitle: originalPostTitle,
+        originalContent: originalPostContent,
+        category: postCategory,
+      };
+      const result = await processBlogPost(input);
+      setProcessedPostData(result);
+      toast({ title: "Post Elaborato!", description: "Il post è stato processato con successo dall'AI." });
+    } catch (error) {
+      console.error("Errore durante l'elaborazione del post:", error);
+      toast({ title: "Errore Elaborazione", description: (error as Error).message || "Si è verificato un errore.", variant: "destructive" });
+    } finally {
+      setIsProcessingPost(false);
+    }
   };
 
   return (
@@ -174,7 +210,7 @@ function AdminNewsSiteView() {
                   <Input id="feedUrl" type="url" placeholder="https://esempio.com/feed.xml" className="flex-grow" />
                   <Button disabled>Salva URL</Button> 
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Inserisci l'URL completo del feed che vuoi aggiungere.</p>
+                <p className="text-xs text-muted-foreground mt-1">Funzionalità in costruzione.</p>
               </div>
             </CardContent>
           </Card>
@@ -271,16 +307,86 @@ function AdminNewsSiteView() {
                 </div>
               </div>
 
-              <Button onClick={handleSaveChanges} disabled={isSaving} className="w-full mt-2">
-                {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Edit3 className="mr-2 h-4 w-4" />}
+              <Button onClick={handleSaveCustomizations} disabled={isSavingCustomizations} className="w-full mt-2">
+                {isSavingCustomizations ? <Loader2 className="animate-spin mr-2" /> : <Edit3 className="mr-2 h-4 w-4" />}
                 Salva Personalizzazioni
               </Button>
             </CardContent>
           </Card>
-
         </aside>
 
         <section className="space-y-6">
+           <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Sparkles className="h-6 w-6 text-primary" />
+                Elaborazione Post con AI (Simulazione)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="originalPostTitle">Titolo Originale</Label>
+                <Input 
+                  id="originalPostTitle" 
+                  value={originalPostTitle} 
+                  onChange={(e) => setOriginalPostTitle(e.target.value)} 
+                  placeholder="Es: Nuova auto elettrica in arrivo" 
+                  disabled={isProcessingPost}
+                />
+              </div>
+              <div>
+                <Label htmlFor="postCategory">Categoria</Label>
+                <Input 
+                  id="postCategory" 
+                  value={postCategory} 
+                  onChange={(e) => setPostCategory(e.target.value)} 
+                  placeholder="Es: Novità Auto, Guide, Recensioni" 
+                  disabled={isProcessingPost}
+                />
+              </div>
+              <div>
+                <Label htmlFor="originalPostContent">Contenuto Originale (min 50 caratteri)</Label>
+                <Textarea 
+                  id="originalPostContent" 
+                  value={originalPostContent} 
+                  onChange={(e) => setOriginalPostContent(e.target.value)} 
+                  rows={6} 
+                  placeholder="Incolla qui il contenuto originale del post..." 
+                  disabled={isProcessingPost}
+                />
+              </div>
+              <Button onClick={handleProcessPost} disabled={isProcessingPost} className="w-full">
+                {isProcessingPost ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                Elabora Post con AI
+              </Button>
+              {processedPostData && (
+                <div className="mt-6 space-y-4 border-t pt-4">
+                  <div>
+                    <Label className="font-semibold">Titolo Elaborato:</Label>
+                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{processedPostData.processedTitle}</p>
+                  </div>
+                  <div>
+                    <Label className="font-semibold">Meta Description:</Label>
+                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{processedPostData.metaDescription}</p>
+                  </div>
+                  <div>
+                    <Label className="font-semibold">Keywords SEO:</Label>
+                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{processedPostData.seoKeywords.join(', ')}</p>
+                  </div>
+                  <div>
+                    <Label className="font-semibold">Contenuto Elaborato:</Label>
+                    <Textarea 
+                      readOnly 
+                      value={processedPostData.processedContent} 
+                      rows={10} 
+                      className="mt-1 bg-muted text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle>Attività Recenti del Sito</CardTitle>
@@ -421,6 +527,7 @@ export default function HomePage() {
                       const { auth } = await import('@/lib/firebase'); 
                       try {
                         await firebaseSignOut(auth);
+                        // Non è necessario reindirizzare qui, il layout principale o la pagina gestirà lo stato di non autenticato.
                       } catch (error) {
                         console.error("Errore logout dall'header:", error);
                       }
@@ -434,7 +541,7 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                {/* Pulsante Registrati non più mostrato */}
+                {/* Pulsante Registrati non più mostrato in linea con la logica di solo admin */}
               </>
             )}
           </nav>
