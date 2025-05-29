@@ -18,10 +18,10 @@ import { useAuth } from "@/contexts/auth-context";
 // In un'applicazione di produzione, DEVI usare un metodo sicuro come Firebase Custom Claims
 // o un ruolo memorizzato in un database backend sicuro.
 // NON usare questo controllo email hardcodato in un'applicazione live.
-const ADMIN_EMAIL = "coppolek@gmail.com"; // AGGIORNATO EMAIL ADMIN
+const ADMIN_EMAIL = "coppolek@gmail.com"; 
 // --- FINE IDENTIFICAZIONE ADMIN TEMPORANEA ---
 
-// Placeholder data for blog posts
+// Placeholder data for blog posts - Mantenuto per la vista BlogFeedView
 const placeholderPosts = [
   {
     id: 1,
@@ -72,7 +72,7 @@ function AdminNewsSiteView() {
         title="Pannello Admin & News del Sito"
         description="Benvenuto, Admin! Ecco le ultime attività e gli strumenti di gestione."
       />
-      <div className="grid lg:grid-cols-[350px_1fr] gap-8 mt-8">
+      <div className="grid md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] gap-8 mt-8">
         {/* Colonna Sinistra (Simil-Sidebar) */}
         <aside className="space-y-6">
           <Card className="shadow-lg">
@@ -87,20 +87,12 @@ function AdminNewsSiteView() {
                 <Label htmlFor="feedUrl" className="text-muted-foreground">Aggiungi o Modifica URL Feed RSS/Atom</Label>
                 <div className="flex gap-2 mt-1">
                   <Input id="feedUrl" type="url" placeholder="https://esempio.com/feed.xml" className="flex-grow" />
-                  <Button disabled>Salva URL</Button> {/* Pulsante disabilitato per ora */}
+                  <Button disabled>Salva URL</Button> 
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Inserisci l'URL completo del feed che vuoi aggiungere.</p>
               </div>
-              {/* Qui potresti aggiungere una lista dei feed esistenti se necessario in futuro */}
             </CardContent>
           </Card>
-          {/* Puoi aggiungere altri moduli admin qui nella colonna sinistra, se necessario */}
-          {/* Esempio:
-          <Card className="shadow-lg">
-            <CardHeader><CardTitle>Altro Modulo Admin</CardTitle></CardHeader>
-            <CardContent><p>Contenuto...</p></CardContent>
-          </Card>
-          */}
         </aside>
 
         {/* Colonna Destra (Contenuto Principale) */}
@@ -117,9 +109,81 @@ function AdminNewsSiteView() {
               </ul>
             </CardContent>
           </Card>
-          {/* Puoi aggiungere altro contenuto principale admin qui */}
         </section>
       </div>
+    </div>
+  );
+}
+
+// Componente per il Feed del Blog (per utenti non admin o non loggati)
+function BlogFeedView() {
+  return (
+    <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
+      <PageHeader
+        title="Feed Principale"
+        description="Esplora gli ultimi articoli e discussioni dalla community."
+      />
+      <section className="max-w-3xl mx-auto">
+        {placeholderPosts.map((post) => (
+          <Card key={post.id} className="mb-6 overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 bg-card">
+            <div className="p-5">
+              <div className="flex items-center text-xs text-muted-foreground mb-2">
+                {post.category && (
+                  <Link href={`/category/${post.category.toLowerCase()}`} className="font-semibold text-primary hover:underline mr-2">
+                    r/{post.category}
+                  </Link>
+                )}
+                <span>Pubblicato da </span>
+                <Link href={`/user/${post.author.toLowerCase().replace(' ','-')}`} className="font-medium hover:underline ml-1 mr-1">
+                  {post.author}
+                </Link>
+                <span>• {post.date}</span>
+              </div>
+
+              <CardTitle className="text-xl mb-3">
+                <Link href={`/blog/${post.slug}`} className="hover:text-primary transition-colors">
+                  {post.title}
+                </Link>
+              </CardTitle>
+
+              {post.imageUrl && (
+                <Link href={`/blog/${post.slug}`} aria-label={`Leggi di più su ${post.title}`} className="block mb-4 rounded-lg overflow-hidden">
+                  <Image
+                    src={post.imageUrl}
+                    alt={post.title}
+                    width={700}
+                    height={400}
+                    className="w-full h-auto object-cover transition-transform duration-300 ease-in-out hover:scale-105"
+                    data-ai-hint={post.imageHint || "blog image"}
+                  />
+                </Link>
+              )}
+              
+              <p className="text-sm text-foreground/90 mb-4 line-clamp-3">{post.excerpt}</p>
+
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary px-2">
+                    <ThumbsUp className="mr-1 h-4 w-4" />
+                    <span>{post.upvotes}</span>
+                  </Button>
+                  <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+                    <Link href={`/blog/${post.slug}#comments`}>
+                      <MessageSquare className="mr-1 h-4 w-4" />
+                      <span>{post.commentsCount} Commenti</span>
+                    </Link>
+                  </Button>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/blog/${post.slug}`}>
+                    Leggi e Commenta <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </section>
     </div>
   );
 }
@@ -127,8 +191,6 @@ function AdminNewsSiteView() {
 
 export default function HomePage() {
   const { currentUser, loading } = useAuth();
-
-  // !! Controllo Admin Temporaneo e NON SICURO !!
   const isAdmin = !loading && currentUser?.email === ADMIN_EMAIL;
 
   if (loading) {
@@ -156,9 +218,33 @@ export default function HomePage() {
                   </span>
                 )}
                  <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                <Button variant="outline" size="sm" asChild>
-                  <Link href="/dashboard">Dashboard</Link>
-                </Button>
+                {!isAdmin && ( // Mostra il pulsante Dashboard solo se l'utente NON è admin
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/dashboard">Dashboard</Link>
+                  </Button>
+                )}
+                {/* L'admin non ha un pulsante "Dashboard" qui, perché la homepage è la sua dashboard.
+                    Potremmo aggiungere un pulsante di Logout qui direttamente se necessario,
+                    ma per ora il logout è gestito dalla AppLayout se l'admin naviga in altre sezioni.
+                    Se l'admin resta solo sulla homepage, non vedrà mai AppLayout.
+                    Per coerenza, il logout può essere aggiunto anche qui.
+                */}
+                 <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      const { signOut: firebaseSignOut } = await import('firebase/auth'); // Lazy import
+                      const { auth } = await import('@/lib/firebase'); // Lazy import
+                      try {
+                        await firebaseSignOut(auth);
+                        // router.push('/login'); // Opzionale: reindirizza dopo il logout
+                      } catch (error) {
+                        console.error("Errore logout dall'header:", error);
+                      }
+                    }}
+                  >
+                    Logout
+                  </Button>
               </>
             ) : (
               <>
@@ -175,77 +261,7 @@ export default function HomePage() {
       </header>
 
       <main className="flex-1">
-        {isAdmin ? (
-          <AdminNewsSiteView />
-        ) : (
-          <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
-            <PageHeader
-              title="Feed Principale"
-              description="Esplora gli ultimi articoli e discussioni dalla community."
-            />
-            <section className="max-w-3xl mx-auto">
-              {placeholderPosts.map((post) => (
-                <Card key={post.id} className="mb-6 overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 bg-card">
-                  <div className="p-5">
-                    <div className="flex items-center text-xs text-muted-foreground mb-2">
-                      {post.category && (
-                        <Link href={`/category/${post.category.toLowerCase()}`} className="font-semibold text-primary hover:underline mr-2">
-                          r/{post.category}
-                        </Link>
-                      )}
-                      <span>Pubblicato da </span>
-                      <Link href={`/user/${post.author.toLowerCase().replace(' ','-')}`} className="font-medium hover:underline ml-1 mr-1">
-                        {post.author}
-                      </Link>
-                      <span>• {post.date}</span>
-                    </div>
-
-                    <CardTitle className="text-xl mb-3">
-                      <Link href={`/blog/${post.slug}`} className="hover:text-primary transition-colors">
-                        {post.title}
-                      </Link>
-                    </CardTitle>
-
-                    {post.imageUrl && (
-                      <Link href={`/blog/${post.slug}`} aria-label={`Leggi di più su ${post.title}`} className="block mb-4 rounded-lg overflow-hidden">
-                        <Image
-                          src={post.imageUrl}
-                          alt={post.title}
-                          width={700}
-                          height={400}
-                          className="w-full h-auto object-cover transition-transform duration-300 ease-in-out hover:scale-105"
-                          data-ai-hint={post.imageHint}
-                        />
-                      </Link>
-                    )}
-                    
-                    <p className="text-sm text-foreground/90 mb-4 line-clamp-3">{post.excerpt}</p>
-
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary px-2">
-                          <ThumbsUp className="mr-1 h-4 w-4" />
-                          <span>{post.upvotes}</span>
-                        </Button>
-                        <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
-                          <Link href={`/blog/${post.slug}#comments`}>
-                            <MessageSquare className="mr-1 h-4 w-4" />
-                            <span>{post.commentsCount} Commenti</span>
-                          </Link>
-                        </Button>
-                      </div>
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/blog/${post.slug}`}>
-                          Leggi e Commenta <ArrowRight className="ml-2 h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </section>
-          </div>
-        )}
+        {isAdmin ? <AdminNewsSiteView /> : <BlogFeedView />}
       </main>
 
       <footer className="py-8 mt-12 border-t bg-background">
