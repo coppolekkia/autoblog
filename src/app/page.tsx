@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { siteConfig } from '@/config/site';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss } from 'lucide-react'; // Rimosso Newspaper, UserCog e aggiunto Rss
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 
 // --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
@@ -64,7 +64,7 @@ const placeholderPosts = [
   },
 ];
 
-// Nuovo componente per la Vista Admin
+// Componente per la Vista Admin
 function AdminNewsSiteView() {
   return (
     <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
@@ -72,42 +72,54 @@ function AdminNewsSiteView() {
         title="Pannello Admin & News del Sito"
         description="Benvenuto, Admin! Ecco le ultime attività e gli strumenti di gestione."
       />
-      <div className="grid gap-8 md:grid-cols-1 lg:grid-cols-1 mb-8"> {/* Modificato per singola colonna o layout preferito */}
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <Rss className="h-6 w-6 text-primary" />
-              Gestione Feed URL
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="feedUrl" className="text-muted-foreground">Aggiungi o Modifica URL Feed RSS/Atom</Label>
-              <div className="flex gap-2 mt-1">
-                <Input id="feedUrl" type="url" placeholder="https://esempio.com/feed.xml" className="flex-grow" />
-                <Button disabled>Salva URL</Button> {/* Pulsante disabilitato per ora */}
+      <div className="grid lg:grid-cols-[350px_1fr] gap-8 mt-8">
+        {/* Colonna Sinistra (Simil-Sidebar) */}
+        <aside className="space-y-6">
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Rss className="h-6 w-6 text-primary" />
+                Gestione Feed URL
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="feedUrl" className="text-muted-foreground">Aggiungi o Modifica URL Feed RSS/Atom</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input id="feedUrl" type="url" placeholder="https://esempio.com/feed.xml" className="flex-grow" />
+                  <Button disabled>Salva URL</Button> {/* Pulsante disabilitato per ora */}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Inserisci l'URL completo del feed che vuoi aggiungere.</p>
               </div>
-               <p className="text-xs text-muted-foreground mt-1">Inserisci l'URL completo del feed che vuoi aggiungere.</p>
-            </div>
-            {/* Qui potresti aggiungere una lista dei feed esistenti se necessario in futuro */}
-          </CardContent>
-        </Card>
-      </div>
+              {/* Qui potresti aggiungere una lista dei feed esistenti se necessario in futuro */}
+            </CardContent>
+          </Card>
+          {/* Puoi aggiungere altri moduli admin qui nella colonna sinistra, se necessario */}
+          {/* Esempio:
+          <Card className="shadow-lg">
+            <CardHeader><CardTitle>Altro Modulo Admin</CardTitle></CardHeader>
+            <CardContent><p>Contenuto...</p></CardContent>
+          </Card>
+          */}
+        </aside>
 
-      <PageHeader
-        title="Attività Recenti del Sito"
-        description="Uno sguardo veloce alle novità."
-      />
-       <Card className="shadow-lg"> {/* Aggiunto shadow-lg per coerenza */}
-          <CardHeader><CardTitle>Feed Attività (Placeholder)</CardTitle></CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>Nuovo articolo: "Il Futuro delle Auto AI" da UtenteX - 2 ore fa</li>
-              <li>Nuovo commento su "Elettrico vs Idrogeno" da UtenteY - 5 ore fa</li>
-              <li>Nuovo utente registrato: utenteZ@email.com - 1 giorno fa</li>
-            </ul>
-          </CardContent>
-        </Card>
+        {/* Colonna Destra (Contenuto Principale) */}
+        <section className="space-y-6">
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle>Attività Recenti del Sito</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li>Nuovo articolo: "Il Futuro delle Auto AI" da UtenteX - 2 ore fa</li>
+                <li>Nuovo commento su "Elettrico vs Idrogeno" da UtenteY - 5 ore fa</li>
+                <li>Nuovo utente registrato: utenteZ@email.com - 1 giorno fa</li>
+              </ul>
+            </CardContent>
+          </Card>
+          {/* Puoi aggiungere altro contenuto principale admin qui */}
+        </section>
+      </div>
     </div>
   );
 }
