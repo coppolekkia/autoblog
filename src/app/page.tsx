@@ -6,8 +6,10 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { siteConfig } from '@/config/site';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Newspaper, Loader2, UserCog } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss } from 'lucide-react'; // Rimosso Newspaper, UserCog e aggiunto Rss
 import { useAuth } from "@/contexts/auth-context";
 
 // --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
@@ -70,49 +72,33 @@ function AdminNewsSiteView() {
         title="Pannello Admin & News del Sito"
         description="Benvenuto, Admin! Ecco le ultime attività e gli strumenti di gestione."
       />
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
+      <div className="grid gap-8 md:grid-cols-1 lg:grid-cols-1 mb-8"> {/* Modificato per singola colonna o layout preferito */}
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
-              <Newspaper className="h-6 w-6 text-primary" />
-              Gestione Contenuti
+              <Rss className="h-6 w-6 text-primary" />
+              Gestione Feed URL
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-4">Gestisci articoli del blog, categorie e commenti.</p>
-            <Button className="w-full" disabled>Gestisci Articoli (Presto)</Button>
-          </CardContent>
-        </Card>
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <UserCog className="h-6 w-6 text-primary" />
-              Gestione Utenti
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-4">Visualizza e gestisci account utente e ruoli.</p>
-            <Button className="w-full" disabled>Gestisci Utenti (Presto)</Button>
-          </CardContent>
-        </Card>
-         <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <ThumbsUp className="h-6 w-6 text-primary" /> 
-              Statistiche Sito
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-4">Panoramica del traffico e dell'engagement.</p>
-            <Button className="w-full" disabled>Vedi Statistiche (Presto)</Button>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="feedUrl" className="text-muted-foreground">Aggiungi o Modifica URL Feed RSS/Atom</Label>
+              <div className="flex gap-2 mt-1">
+                <Input id="feedUrl" type="url" placeholder="https://esempio.com/feed.xml" className="flex-grow" />
+                <Button disabled>Salva URL</Button> {/* Pulsante disabilitato per ora */}
+              </div>
+               <p className="text-xs text-muted-foreground mt-1">Inserisci l'URL completo del feed che vuoi aggiungere.</p>
+            </div>
+            {/* Qui potresti aggiungere una lista dei feed esistenti se necessario in futuro */}
           </CardContent>
         </Card>
       </div>
+
       <PageHeader
         title="Attività Recenti del Sito"
         description="Uno sguardo veloce alle novità."
       />
-       <Card>
+       <Card className="shadow-lg"> {/* Aggiunto shadow-lg per coerenza */}
           <CardHeader><CardTitle>Feed Attività (Placeholder)</CardTitle></CardHeader>
           <CardContent>
             <ul className="space-y-2 text-sm text-muted-foreground">
