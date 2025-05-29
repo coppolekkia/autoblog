@@ -45,18 +45,18 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
                   </span>
                 )}
                  <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                <Button variant="outline" size="sm" asChild>
+                 {/* Il pulsante Dashboard non è necessario per l'admin sulla pagina del post, 
+                     e gli utenti normali non dovrebbero esistere. Per sicurezza, lo rimuoviamo.
+                 <Button variant="outline" size="sm" asChild>
                   <Link href="/dashboard">Dashboard</Link>
-                </Button>
+                </Button> */}
               </>
             ) : (
               <>
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                <Button variant="default" asChild>
-                  <Link href="/register">Registrati</Link>
-                </Button>
+                {/* Pulsante Registrati rimosso */}
               </>
             )}
           </nav>
@@ -110,7 +110,7 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground mb-4">
-                Accedi per lasciare un commento.
+                {currentUser ? "Lascia un commento:" : "Accedi per lasciare un commento."}
               </p>
               {/* Comment form and list will go here */}
               <div className="border-t pt-4">
