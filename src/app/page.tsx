@@ -11,15 +11,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink } from 'lucide-react'; // Aggiunte ListChecks, ExternalLink
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context"; 
 import { processBlogPost, type ProcessBlogPostInput, type ProcessBlogPostOutput } from "@/ai/flows/process-blog-post";
+import { fetchFeedItems, type FetchFeedItemsInput, type FetchFeedItemsOutput, type FeedItem } from "@/ai/flows/fetch-feed-items"; // Importa per i feed
 import { useToast } from "@/hooks/use-toast";
 
 // --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
-// !! IMPORTANTE !! Questo metodo NON è sicuro per la produzione.
-// Usare Firebase Custom Claims per una gestione sicura dei ruoli.
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
 // --- FINE IDENTIFICAZIONE ADMIN TEMPORANEA ---
 
@@ -67,6 +66,78 @@ const placeholderPosts = [
     category: "Recensioni"
   },
 ];
+
+function BlogFeedView() {
+  return (
+    <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
+      <PageHeader
+        title="Feed Principale"
+        description="Esplora gli ultimi articoli e discussioni dalla community."
+      />
+      <section className="max-w-3xl mx-auto">
+        {placeholderPosts.map((post) => (
+          <Card key={post.id} className="mb-6 overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 bg-card">
+            <div className="p-5">
+              <div className="flex items-center text-xs text-muted-foreground mb-2">
+                {post.category && (
+                  <Link href={`/category/${post.category.toLowerCase()}`} className="font-semibold text-primary hover:underline mr-2">
+                    r/{post.category}
+                  </Link>
+                )}
+                <span>Pubblicato da </span>
+                <Link href={`/user/${post.author.toLowerCase().replace(' ','-')}`} className="font-medium hover:underline ml-1 mr-1">
+                  {post.author}
+                </Link>
+                <span>• {post.date}</span>
+              </div>
+
+              <CardTitle className="text-xl mb-3">
+                <Link href={`/blog/${post.slug}`} className="hover:text-primary transition-colors">
+                  {post.title}
+                </Link>
+              </CardTitle>
+
+              {post.imageUrl && (
+                <Link href={`/blog/${post.slug}`} aria-label={`Leggi di più su ${post.title}`} className="block mb-4 rounded-lg overflow-hidden">
+                  <Image
+                    src={post.imageUrl}
+                    alt={post.title}
+                    width={700}
+                    height={400}
+                    className="w-full h-auto object-cover transition-transform duration-300 ease-in-out hover:scale-105"
+                    data-ai-hint={post.imageHint || "blog image"}
+                  />
+                </Link>
+              )}
+              
+              <p className="text-sm text-foreground/90 mb-4 line-clamp-3">{post.excerpt}</p>
+
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary px-2">
+                    <ThumbsUp className="mr-1 h-4 w-4" />
+                    <span>{post.upvotes}</span>
+                  </Button>
+                  <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+                    <Link href={`/blog/${post.slug}#comments`}>
+                      <MessageSquare className="mr-1 h-4 w-4" />
+                      <span>{post.commentsCount} Commenti</span>
+                    </Link>
+                  </Button>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/blog/${post.slug}`}>
+                    Leggi e Commenta <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </section>
+    </div>
+  );
+}
 
 function AdminNewsSiteView() {
   const { 
@@ -121,12 +192,15 @@ function AdminNewsSiteView() {
 
   const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
 
-  // Stati per il form di elaborazione post AI
   const [originalPostTitle, setOriginalPostTitle] = useState("");
   const [originalPostContent, setOriginalPostContent] = useState("");
   const [postCategory, setPostCategory] = useState("");
   const [isProcessingPost, setIsProcessingPost] = useState(false);
   const [processedPostData, setProcessedPostData] = useState<ProcessBlogPostOutput | null>(null);
+
+  const [feedUrl, setFeedUrl] = useState("");
+  const [isFetchingFeed, setIsFetchingFeed] = useState(false);
+  const [fetchedFeedItems, setFetchedFeedItems] = useState<FeedItem[]>([]);
 
 
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
@@ -188,6 +262,42 @@ function AdminNewsSiteView() {
     }
   };
 
+  const handleFetchFeed = async () => {
+    if (!feedUrl) {
+      toast({ title: "URL Mancante", description: "Per favore, inserisci un URL per il feed.", variant: "destructive" });
+      return;
+    }
+    setIsFetchingFeed(true);
+    setFetchedFeedItems([]);
+    try {
+      const input: FetchFeedItemsInput = { feedUrl };
+      const result: FetchFeedItemsOutput = await fetchFeedItems(input);
+      if (result.error) {
+        toast({ title: "Errore Caricamento Feed", description: result.error, variant: "destructive" });
+        setFetchedFeedItems([]);
+      } else {
+        setFetchedFeedItems(result.items);
+        toast({ title: "Feed Caricato!", description: `Trovati ${result.items.length} articoli.` });
+      }
+    } catch (error) {
+      console.error("Errore durante il recupero del feed:", error);
+      toast({ title: "Errore Caricamento Feed", description: (error as Error).message || "Si è verificato un errore.", variant: "destructive" });
+    } finally {
+      setIsFetchingFeed(false);
+    }
+  };
+
+  const handlePrepareForAI = (item: FeedItem) => {
+    setOriginalPostTitle(item.title || "");
+    setOriginalPostContent(item.content || "");
+    // La categoria dovrà essere impostata manualmente o tramite un'altra logica
+    setPostCategory(""); // Resetta la categoria
+    toast({ title: "Articolo Pronto", description: "Titolo e contenuto caricati nel modulo di elaborazione AI."});
+    // Potrebbe essere utile scrollare alla sezione di elaborazione AI
+    document.getElementById('ai-processing-card')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+
   return (
     <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
       <PageHeader
@@ -205,13 +315,55 @@ function AdminNewsSiteView() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="feedUrl" className="text-muted-foreground">Aggiungi o Modifica URL Feed RSS/Atom</Label>
+                <Label htmlFor="feedUrlInput" className="text-muted-foreground">URL Feed RSS/Atom</Label>
                 <div className="flex gap-2 mt-1">
-                  <Input id="feedUrl" type="url" placeholder="https://esempio.com/feed.xml" className="flex-grow" />
-                  <Button disabled>Salva URL</Button> 
+                  <Input 
+                    id="feedUrlInput" 
+                    type="url" 
+                    placeholder="https://esempio.com/feed.xml" 
+                    className="flex-grow"
+                    value={feedUrl}
+                    onChange={(e) => setFeedUrl(e.target.value)}
+                    disabled={isFetchingFeed}
+                  />
+                  <Button onClick={handleFetchFeed} disabled={isFetchingFeed}>
+                    {isFetchingFeed ? <Loader2 className="animate-spin h-4 w-4" /> : "Carica"}
+                  </Button> 
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Funzionalità in costruzione.</p>
               </div>
+              {fetchedFeedItems.length > 0 && (
+                <div className="mt-4 space-y-2 max-h-96 overflow-y-auto border p-2 rounded-md">
+                  <h4 className="font-semibold text-sm mb-2">Articoli dal Feed:</h4>
+                  {fetchedFeedItems.map((item, index) => (
+                    <Card key={item.guid || index} className="p-2 text-sm bg-muted/50">
+                      <div className="flex justify-between items-start">
+                        <div>
+                            <p className="font-medium truncate" title={item.title}>{item.title || "Nessun Titolo"}</p>
+                            {item.pubDate && <p className="text-xs text-muted-foreground">{new Date(item.pubDate).toLocaleDateString()}</p>}
+                        </div>
+                        <div className="flex gap-1">
+                            {item.link && (
+                                <Button variant="outline" size="icon" className="h-7 w-7" asChild>
+                                    <a href={item.link} target="_blank" rel="noopener noreferrer" title="Apri originale">
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                    </a>
+                                </Button>
+                            )}
+                            <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-7 w-7"
+                                onClick={() => handlePrepareForAI(item)}
+                                title="Prepara per AI"
+                            >
+                                <ListChecks className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -316,12 +468,15 @@ function AdminNewsSiteView() {
         </aside>
 
         <section className="space-y-6">
-           <Card className="shadow-lg">
+           <Card className="shadow-lg" id="ai-processing-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Sparkles className="h-6 w-6 text-primary" />
-                Elaborazione Post con AI (Simulazione)
+                Elaborazione Post con AI
               </CardTitle>
+              <CardDescription>
+                Carica un articolo da un feed o inserisci manualmente il testo, poi elaboralo con l'AI per ottimizzare titolo, contenuto, meta description e keywords SEO.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -404,78 +559,6 @@ function AdminNewsSiteView() {
   );
 }
 
-function BlogFeedView() {
-  return (
-    <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
-      <PageHeader
-        title="Feed Principale"
-        description="Esplora gli ultimi articoli e discussioni dalla community."
-      />
-      <section className="max-w-3xl mx-auto">
-        {placeholderPosts.map((post) => (
-          <Card key={post.id} className="mb-6 overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 bg-card">
-            <div className="p-5">
-              <div className="flex items-center text-xs text-muted-foreground mb-2">
-                {post.category && (
-                  <Link href={`/category/${post.category.toLowerCase()}`} className="font-semibold text-primary hover:underline mr-2">
-                    r/{post.category}
-                  </Link>
-                )}
-                <span>Pubblicato da </span>
-                <Link href={`/user/${post.author.toLowerCase().replace(' ','-')}`} className="font-medium hover:underline ml-1 mr-1">
-                  {post.author}
-                </Link>
-                <span>• {post.date}</span>
-              </div>
-
-              <CardTitle className="text-xl mb-3">
-                <Link href={`/blog/${post.slug}`} className="hover:text-primary transition-colors">
-                  {post.title}
-                </Link>
-              </CardTitle>
-
-              {post.imageUrl && (
-                <Link href={`/blog/${post.slug}`} aria-label={`Leggi di più su ${post.title}`} className="block mb-4 rounded-lg overflow-hidden">
-                  <Image
-                    src={post.imageUrl}
-                    alt={post.title}
-                    width={700}
-                    height={400}
-                    className="w-full h-auto object-cover transition-transform duration-300 ease-in-out hover:scale-105"
-                    data-ai-hint={post.imageHint || "blog image"}
-                  />
-                </Link>
-              )}
-              
-              <p className="text-sm text-foreground/90 mb-4 line-clamp-3">{post.excerpt}</p>
-
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary px-2">
-                    <ThumbsUp className="mr-1 h-4 w-4" />
-                    <span>{post.upvotes}</span>
-                  </Button>
-                  <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
-                    <Link href={`/blog/${post.slug}#comments`}>
-                      <MessageSquare className="mr-1 h-4 w-4" />
-                      <span>{post.commentsCount} Commenti</span>
-                    </Link>
-                  </Button>
-                </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/blog/${post.slug}`}>
-                    Leggi e Commenta <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </Card>
-        ))}
-      </section>
-    </div>
-  );
-}
-
 
 export default function HomePage() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -514,7 +597,7 @@ export default function HomePage() {
                   </span>
                 )}
                 <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                 {!isAdmin && ( // Mostra Dashboard solo se non è admin
+                 {!isAdmin && (
                     <Button variant="outline" size="sm" asChild>
                         <Link href="/dashboard">Dashboard</Link>
                     </Button>
@@ -527,7 +610,6 @@ export default function HomePage() {
                       const { auth } = await import('@/lib/firebase'); 
                       try {
                         await firebaseSignOut(auth);
-                        // Non è necessario reindirizzare qui, il layout principale o la pagina gestirà lo stato di non autenticato.
                       } catch (error) {
                         console.error("Errore logout dall'header:", error);
                       }
@@ -541,7 +623,7 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                {/* Pulsante Registrati non più mostrato in linea con la logica di solo admin */}
+                {/* Pulsante Registrati non più mostrato */}
               </>
             )}
           </nav>
