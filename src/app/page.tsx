@@ -10,16 +10,12 @@ import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-// siteConfig non è più usato qui per il nome, useremo il context
 import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3 } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context"; 
 
-// --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
-// --- FINE IDENTIFICAZIONE ADMIN TEMPORANEA ---
 
-// Placeholder data for blog posts (rimane per BlogFeedView)
 const placeholderPosts = [
   {
     id: 1,
@@ -62,7 +58,6 @@ const placeholderPosts = [
   },
 ];
 
-// Componente per la Vista Admin
 function AdminNewsSiteView() {
   const { 
     siteTitle: currentGlobalTitle, 
@@ -79,6 +74,18 @@ function AdminNewsSiteView() {
     setCardSaturationState,
     cardLightness: currentGlobalCardLightness,
     setCardLightnessState,
+    primaryHue: currentGlobalPrimaryHue,
+    setPrimaryHueState,
+    primarySaturation: currentGlobalPrimarySaturation,
+    setPrimarySaturationState,
+    primaryLightness: currentGlobalPrimaryLightness,
+    setPrimaryLightnessState,
+    primaryFgHue: currentGlobalPrimaryFgHue,
+    setPrimaryFgHueState,
+    primaryFgSaturation: currentGlobalPrimaryFgSaturation,
+    setPrimaryFgSaturationState,
+    primaryFgLightness: currentGlobalPrimaryFgLightness,
+    setPrimaryFgLightnessState,
     applyCustomization 
   } = useSiteCustomization();
 
@@ -92,9 +99,16 @@ function AdminNewsSiteView() {
   const [localCardSaturation, setLocalCardSaturation] = useState(currentGlobalCardSaturation);
   const [localCardLightness, setLocalCardLightness] = useState(currentGlobalCardLightness);
 
+  const [localPrimaryHue, setLocalPrimaryHue] = useState(currentGlobalPrimaryHue);
+  const [localPrimarySaturation, setLocalPrimarySaturation] = useState(currentGlobalPrimarySaturation);
+  const [localPrimaryLightness, setLocalPrimaryLightness] = useState(currentGlobalPrimaryLightness);
+
+  const [localPrimaryFgHue, setLocalPrimaryFgHue] = useState(currentGlobalPrimaryFgHue);
+  const [localPrimaryFgSaturation, setLocalPrimaryFgSaturation] = useState(currentGlobalPrimaryFgSaturation);
+  const [localPrimaryFgLightness, setLocalPrimaryFgLightness] = useState(currentGlobalPrimaryFgLightness);
+
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sincronizza lo stato locale se lo stato globale cambia
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
   
   useEffect(() => setLocalBgHue(currentGlobalBgHue), [currentGlobalBgHue]);
@@ -104,6 +118,15 @@ function AdminNewsSiteView() {
   useEffect(() => setLocalCardHue(currentGlobalCardHue), [currentGlobalCardHue]);
   useEffect(() => setLocalCardSaturation(currentGlobalCardSaturation), [currentGlobalCardSaturation]);
   useEffect(() => setLocalCardLightness(currentGlobalCardLightness), [currentGlobalCardLightness]);
+
+  useEffect(() => setLocalPrimaryHue(currentGlobalPrimaryHue), [currentGlobalPrimaryHue]);
+  useEffect(() => setLocalPrimarySaturation(currentGlobalPrimarySaturation), [currentGlobalPrimarySaturation]);
+  useEffect(() => setLocalPrimaryLightness(currentGlobalPrimaryLightness), [currentGlobalPrimaryLightness]);
+
+  useEffect(() => setLocalPrimaryFgHue(currentGlobalPrimaryFgHue), [currentGlobalPrimaryFgHue]);
+  useEffect(() => setLocalPrimaryFgSaturation(currentGlobalPrimaryFgSaturation), [currentGlobalPrimaryFgSaturation]);
+  useEffect(() => setLocalPrimaryFgLightness(currentGlobalPrimaryFgLightness), [currentGlobalPrimaryFgLightness]);
+
 
   const handleSaveChanges = () => {
     setIsSaving(true);
@@ -116,6 +139,14 @@ function AdminNewsSiteView() {
     setCardHueState(localCardHue);
     setCardSaturationState(localCardSaturation);
     setCardLightnessState(localCardLightness);
+
+    setPrimaryHueState(localPrimaryHue);
+    setPrimarySaturationState(localPrimarySaturation);
+    setPrimaryLightnessState(localPrimaryLightness);
+
+    setPrimaryFgHueState(localPrimaryFgHue);
+    setPrimaryFgSaturationState(localPrimaryFgSaturation);
+    setPrimaryFgLightnessState(localPrimaryFgLightness);
     
     applyCustomization(); 
     setTimeout(() => setIsSaving(false), 500); 
@@ -204,6 +235,42 @@ function AdminNewsSiteView() {
                 </div>
               </div>
 
+              <div className="space-y-1">
+                <Label>Colore Primario Pulsanti (HSL)</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label htmlFor="primaryHue" className="text-xs text-muted-foreground">H (0-360)</Label>
+                    <Input id="primaryHue" type="number" min="0" max="360" value={localPrimaryHue} onChange={(e) => setLocalPrimaryHue(e.target.value)} placeholder="190" />
+                  </div>
+                  <div>
+                    <Label htmlFor="primarySaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
+                    <Input id="primarySaturation" type="number" min="0" max="100" value={localPrimarySaturation} onChange={(e) => setLocalPrimarySaturation(e.target.value)} placeholder="28" />
+                  </div>
+                  <div>
+                    <Label htmlFor="primaryLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
+                    <Input id="primaryLightness" type="number" min="0" max="100" value={localPrimaryLightness} onChange={(e) => setLocalPrimaryLightness(e.target.value)} placeholder="57" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Colore Testo Primario Pulsanti (HSL)</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label htmlFor="primaryFgHue" className="text-xs text-muted-foreground">H (0-360)</Label>
+                    <Input id="primaryFgHue" type="number" min="0" max="360" value={localPrimaryFgHue} onChange={(e) => setLocalPrimaryFgHue(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <Label htmlFor="primaryFgSaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
+                    <Input id="primaryFgSaturation" type="number" min="0" max="100" value={localPrimaryFgSaturation} onChange={(e) => setLocalPrimaryFgSaturation(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <Label htmlFor="primaryFgLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
+                    <Input id="primaryFgLightness" type="number" min="0" max="100" value={localPrimaryFgLightness} onChange={(e) => setLocalPrimaryFgLightness(e.target.value)} placeholder="100" />
+                  </div>
+                </div>
+              </div>
+
               <Button onClick={handleSaveChanges} disabled={isSaving} className="w-full mt-2">
                 {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Edit3 className="mr-2 h-4 w-4" />}
                 Salva Personalizzazioni
@@ -231,7 +298,6 @@ function AdminNewsSiteView() {
   );
 }
 
-// Componente per il Feed del Blog (per utenti non admin o non loggati)
 function BlogFeedView() {
   return (
     <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
@@ -307,10 +373,9 @@ function BlogFeedView() {
 
 export default function HomePage() {
   const { currentUser, loading: authLoading } = useAuth();
-  const { siteTitle } = useSiteCustomization(); // Ottieni il titolo del sito dal context
+  const { siteTitle } = useSiteCustomization(); 
   const isAdmin = !authLoading && currentUser?.email === ADMIN_EMAIL;
 
-  // Effetto per aggiornare document.title quando siteTitle dal context cambia
   useEffect(() => {
     if (siteTitle) {
       document.title = siteTitle;
@@ -343,11 +408,11 @@ export default function HomePage() {
                   </span>
                 )}
                 <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                {!isAdmin && (
-                   <Button variant="outline" size="sm" asChild>
-                     <Link href="/dashboard">Dashboard</Link>
-                   </Button>
-                )}
+                 {!isAdmin && ( // Mostra Dashboard solo se non è admin
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href="/dashboard">Dashboard</Link>
+                    </Button>
+                 )}
                  <Button
                     variant="ghost"
                     size="sm"
@@ -369,6 +434,7 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
+                {/* Pulsante Registrati non più mostrato */}
               </>
             )}
           </nav>
