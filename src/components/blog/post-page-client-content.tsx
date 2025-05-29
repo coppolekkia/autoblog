@@ -1,13 +1,15 @@
+
 'use client';
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from "@/contexts/auth-context";
+import { useSiteCustomization } from "@/contexts/site-customization-context"; // Importa il context
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
-import { siteConfig } from '@/config/site';
+// siteConfig non è più usato qui per il nome del sito
 import { ArrowLeft, ThumbsUp, MessageSquare, Loader2, Shield } from 'lucide-react';
 import type { Post } from '@/types/blog';
 
@@ -17,10 +19,21 @@ interface PostPageClientContentProps {
 }
 
 export default function PostPageClientContent({ post, adminEmail }: PostPageClientContentProps) {
-  const { currentUser, loading } = useAuth();
-  const isAdmin = !loading && currentUser?.email === adminEmail;
+  const { currentUser, loading: authLoading } = useAuth();
+  const { siteTitle } = useSiteCustomization(); // Ottieni il titolo del sito dal context
+  const isAdmin = !authLoading && currentUser?.email === adminEmail;
 
-  if (loading) {
+  // Effetto per aggiornare document.title quando siteTitle dal context cambia
+  // o quando il titolo del post è disponibile (per la pagina specifica del post)
+  React.useEffect(() => {
+    if (post?.title && siteTitle) {
+      document.title = `${post.title} | ${siteTitle}`;
+    } else if (siteTitle) {
+      document.title = siteTitle;
+    }
+  }, [siteTitle, post?.title]);
+
+  if (authLoading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -33,7 +46,7 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            <span className="font-bold text-xl text-primary">{siteConfig.name}</span>
+            <span className="font-bold text-xl text-primary">{siteTitle}</span> {/* Usa siteTitle dal context */}
           </Link>
           <nav className="flex items-center space-x-2">
             {currentUser ? (
@@ -45,11 +58,26 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
                   </span>
                 )}
                  <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                 {/* Il pulsante Dashboard non è necessario per l'admin sulla pagina del post, 
-                     e gli utenti normali non dovrebbero esistere. Per sicurezza, lo rimuoviamo.
-                 <Button variant="outline" size="sm" asChild>
-                  <Link href="/dashboard">Dashboard</Link>
-                </Button> */}
+                 {!isAdmin && ( // Mostra Dashboard solo se non è admin
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href="/dashboard">Dashboard</Link>
+                    </Button>
+                 )}
+                 <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      const { signOut: firebaseSignOut } = await import('firebase/auth');
+                      const { auth } = await import('@/lib/firebase');
+                      try {
+                        await firebaseSignOut(auth);
+                      } catch (error) {
+                        console.error("Errore logout dall'header del post:", error);
+                      }
+                    }}
+                  >
+                    Logout
+                  </Button>
               </>
             ) : (
               <>
@@ -91,8 +119,8 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
                 width={700}
                 height={400}
                 className="w-full h-auto object-cover"
-                data-ai-hint={post.imageHint}
-                priority // Prioritize loading for LCP on post page
+                data-ai-hint={post.imageHint || "blog image"}
+                priority 
               />
             </div>
           )}
@@ -112,7 +140,6 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
               <p className="text-muted-foreground mb-4">
                 {currentUser ? "Lascia un commento:" : "Accedi per lasciare un commento."}
               </p>
-              {/* Comment form and list will go here */}
               <div className="border-t pt-4">
                 <p className="text-sm text-center text-muted-foreground">
                   (Sezione commenti in costruzione)
@@ -131,7 +158,7 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
 
       <footer className="py-8 mt-12 border-t bg-background">
         <div className="container mx-auto text-center text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} {siteConfig.name}. Tutti i diritti riservati.</p>
+          <p>&copy; {new Date().getFullYear()} {siteTitle}. Tutti i diritti riservati.</p> {/* Usa siteTitle dal context */}
         </div>
       </footer>
     </div>

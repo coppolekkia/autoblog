@@ -4,23 +4,22 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { siteConfig } from '@/config/site';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss } from 'lucide-react';
+// siteConfig non è più usato qui per il nome, useremo il context
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3 } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
+import { useSiteCustomization } from "@/contexts/site-customization-context"; // Importa il nuovo context
 
 // --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
-// !! IMPORTANTE !!
-// Questo è un metodo TEMPORANEO e NON SICURO per identificare un admin, solo a scopo dimostrativo.
-// In un'applicazione di produzione, DEVI usare un metodo sicuro come Firebase Custom Claims.
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
 // --- FINE IDENTIFICAZIONE ADMIN TEMPORANEA ---
 
-// Placeholder data for blog posts
+// Placeholder data for blog posts (rimane per BlogFeedView)
 const placeholderPosts = [
   {
     id: 1,
@@ -65,6 +64,44 @@ const placeholderPosts = [
 
 // Componente per la Vista Admin
 function AdminNewsSiteView() {
+  const { 
+    siteTitle: currentGlobalTitle, 
+    setSiteTitleState, 
+    bgHue: currentGlobalHue, 
+    setBgHueState, 
+    bgSaturation: currentGlobalSaturation, 
+    setBgSaturationState, 
+    bgLightness: currentGlobalLightness, 
+    setBgLightnessState,
+    applyCustomization 
+  } = useSiteCustomization();
+
+  const [localTitle, setLocalTitle] = useState(currentGlobalTitle);
+  const [localHue, setLocalHue] = useState(currentGlobalHue);
+  const [localSaturation, setLocalSaturation] = useState(currentGlobalSaturation);
+  const [localLightness, setLocalLightness] = useState(currentGlobalLightness);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Sincronizza lo stato locale se lo stato globale cambia (es. da localStorage all'avvio)
+  useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
+  useEffect(() => setLocalHue(currentGlobalHue), [currentGlobalHue]);
+  useEffect(() => setLocalSaturation(currentGlobalSaturation), [currentGlobalSaturation]);
+  useEffect(() => setLocalLightness(currentGlobalLightness), [currentGlobalLightness]);
+
+  const handleSaveChanges = () => {
+    setIsSaving(true);
+    setSiteTitleState(localTitle);
+    setBgHueState(localHue);
+    setBgSaturationState(localSaturation);
+    setBgLightnessState(localLightness);
+    // Applica immediatamente e salva in localStorage
+    applyCustomization(); 
+    // Non è necessario aspettare applyCustomization perché aggiorna lo stato del context che poi viene salvato da un useEffect nel context.
+    // Ma per la UI, chiamiamo applyCustomization qui per forzare l'effetto.
+    setTimeout(() => setIsSaving(false), 500); // Simula salvataggio
+    // Potresti aggiungere un toast di conferma qui
+  };
+
   return (
     <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
       <PageHeader
@@ -72,7 +109,6 @@ function AdminNewsSiteView() {
         description="Benvenuto, Admin! Ecco le ultime attività e gli strumenti di gestione."
       />
       <div className="grid md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] gap-8 mt-8">
-        {/* Colonna Sinistra (Simil-Sidebar) */}
         <aside className="space-y-6">
           <Card className="shadow-lg">
             <CardHeader>
@@ -92,9 +128,52 @@ function AdminNewsSiteView() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Palette className="h-6 w-6 text-primary" />
+                Personalizzazione Sito
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="siteTitleInput">Titolo del Sito</Label>
+                <Input 
+                  id="siteTitleInput" 
+                  type="text" 
+                  value={localTitle}
+                  onChange={(e) => setLocalTitle(e.target.value)}
+                  placeholder="Il Mio Fantastico Blog" 
+                  className="mt-1" 
+                />
+              </div>
+              <div>
+                <Label>Colore Sfondo (HSL)</Label>
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  <div>
+                    <Label htmlFor="bgHue" className="text-xs text-muted-foreground">H (0-360)</Label>
+                    <Input id="bgHue" type="number" min="0" max="360" value={localHue} onChange={(e) => setLocalHue(e.target.value)} placeholder="45" />
+                  </div>
+                  <div>
+                    <Label htmlFor="bgSaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
+                    <Input id="bgSaturation" type="number" min="0" max="100" value={localSaturation} onChange={(e) => setLocalSaturation(e.target.value)} placeholder="25" />
+                  </div>
+                  <div>
+                    <Label htmlFor="bgLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
+                    <Input id="bgLightness" type="number" min="0" max="100" value={localLightness} onChange={(e) => setLocalLightness(e.target.value)} placeholder="96" />
+                  </div>
+                </div>
+              </div>
+              <Button onClick={handleSaveChanges} disabled={isSaving} className="w-full mt-2">
+                {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Edit3 className="mr-2 h-4 w-4" />}
+                Salva Personalizzazioni
+              </Button>
+            </CardContent>
+          </Card>
+
         </aside>
 
-        {/* Colonna Destra (Contenuto Principale) */}
         <section className="space-y-6">
           <Card className="shadow-lg">
             <CardHeader>
@@ -104,7 +183,6 @@ function AdminNewsSiteView() {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>Nuovo articolo: "Il Futuro delle Auto AI" da UtenteX - 2 ore fa</li>
                 <li>Nuovo commento su "Elettrico vs Idrogeno" da UtenteY - 5 ore fa</li>
-                <li>Nuovo utente registrato: utenteZ@email.com - 1 giorno fa</li>
               </ul>
             </CardContent>
           </Card>
@@ -189,10 +267,19 @@ function BlogFeedView() {
 
 
 export default function HomePage() {
-  const { currentUser, loading } = useAuth();
-  const isAdmin = !loading && currentUser?.email === ADMIN_EMAIL;
+  const { currentUser, loading: authLoading } = useAuth();
+  const { siteTitle } = useSiteCustomization(); // Ottieni il titolo del sito dal context
+  const isAdmin = !authLoading && currentUser?.email === ADMIN_EMAIL;
 
-  if (loading) {
+  // Effetto per aggiornare document.title quando siteTitle dal context cambia
+  useEffect(() => {
+    if (siteTitle) {
+      document.title = siteTitle;
+    }
+  }, [siteTitle]);
+
+
+  if (authLoading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -201,11 +288,11 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/40" data-page-id="home-page-main-wrapper">
+    <div className="min-h-screen flex flex-col bg-background" data-page-id="home-page-main-wrapper"> {/* Usa bg-background qui */}
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            <span className="font-bold text-xl text-primary">{siteConfig.name}</span>
+            <span className="font-bold text-xl text-primary">{siteTitle}</span> {/* Usa siteTitle dal context */}
           </Link>
           <nav className="flex items-center space-x-2">
             {currentUser ? (
@@ -216,17 +303,21 @@ export default function HomePage() {
                     Admin Mode
                   </span>
                 )}
-                 <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                {/* Il pulsante Dashboard per utenti normali loggati è stato rimosso in quanto il login è solo per admin */}
+                <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
+                {/* Non mostrare il pulsante Dashboard se l'utente è admin (la homepage è la sua dashboard) */}
+                {!isAdmin && (
+                   <Button variant="outline" size="sm" asChild>
+                     <Link href="/dashboard">Dashboard</Link>
+                   </Button>
+                )}
                  <Button
                     variant="ghost"
                     size="sm"
                     onClick={async () => {
-                      const { signOut: firebaseSignOut } = await import('firebase/auth'); // Lazy import
-                      const { auth } = await import('@/lib/firebase'); // Lazy import
+                      const { signOut: firebaseSignOut } = await import('firebase/auth'); 
+                      const { auth } = await import('@/lib/firebase'); 
                       try {
                         await firebaseSignOut(auth);
-                        // router.push('/login'); // Opzionale: reindirizza dopo il logout
                       } catch (error) {
                         console.error("Errore logout dall'header:", error);
                       }
@@ -240,7 +331,7 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                {/* Pulsante Registrati rimosso */}
+                {/* Pulsante Registrati rimosso perché la registrazione è solo per admin */}
               </>
             )}
           </nav>
@@ -253,7 +344,7 @@ export default function HomePage() {
 
       <footer className="py-8 mt-12 border-t bg-background">
         <div className="container mx-auto text-center text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} {siteConfig.name}. Tutti i diritti riservati.</p>
+          <p>&copy; {new Date().getFullYear()} {siteTitle}. Tutti i diritti riservati.</p> {/* Usa siteTitle dal context */}
           <p className="text-sm">
             Powered by AI for a better driving content experience.
           </p>
