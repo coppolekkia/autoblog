@@ -17,6 +17,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 
+// Inline SVG for Google Icon
+const GoogleIcon = () => (
+  <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
+);
+
 const formSchema = z.object({
   email: z.string().email({ message: "Inserisci un'email valida." }),
   password: z.string().min(6, { message: "La password deve contenere almeno 6 caratteri." }),
@@ -26,7 +31,8 @@ type LoginFormValues = z.infer<typeof formSchema>;
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = React.useState(false);
-  const { signIn, currentUser } = useAuth();
+  const [isGoogleLoading, setIsGoogleLoading] = React.useState(false);
+  const { signIn, signInWithGoogle, currentUser } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -52,7 +58,7 @@ export default function LoginPage() {
         title: "Accesso Riuscito!",
         description: "Benvenuto kembali!",
       });
-      router.push("/dashboard"); // Reindirizza alla dashboard dopo il login
+      router.push("/dashboard");
     } catch (error: any) {
       console.error("Errore di accesso:", error);
       let errorMessage = "Si è verificato un errore imprevisto. Riprova.";
@@ -68,8 +74,29 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      toast({
+        title: "Accesso con Google Riuscito!",
+        description: "Benvenuto!",
+      });
+      router.push("/dashboard");
+    } catch (error: any) {
+      console.error("Errore di accesso con Google:", error);
+      toast({
+        title: "Errore di Accesso con Google",
+        description: error.message || "Si è verificato un errore imprevisto durante il login con Google.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
   
-  if (currentUser) {
+  if (currentUser && !isLoading && !isGoogleLoading) { // Modificato per controllare anche i loading state prima del redirect/loader
     return (
       <div className="container mx-auto flex justify-center items-center min-h-screen">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -103,7 +130,7 @@ export default function LoginPage() {
                         type="email"
                         placeholder="tuamail@esempio.com"
                         {...field}
-                        disabled={isLoading}
+                        disabled={isLoading || isGoogleLoading}
                       />
                     </FormControl>
                     <FormMessage />
@@ -122,7 +149,7 @@ export default function LoginPage() {
                         type="password"
                         placeholder="••••••••"
                         {...field}
-                        disabled={isLoading}
+                        disabled={isLoading || isGoogleLoading}
                       />
                     </FormControl>
                     <FormMessage />
@@ -131,7 +158,7 @@ export default function LoginPage() {
               />
             </CardContent>
             <CardFooter className="flex flex-col items-stretch gap-4">
-              <Button type="submit" disabled={isLoading} className="w-full">
+              <Button type="submit" disabled={isLoading || isGoogleLoading} className="w-full">
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -141,7 +168,28 @@ export default function LoginPage() {
                   "Accedi"
                 )}
               </Button>
-              <p className="text-center text-sm text-muted-foreground">
+
+              <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">
+                    Oppure continua con
+                  </span>
+                </div>
+              </div>
+
+              <Button variant="outline" type="button" disabled={isLoading || isGoogleLoading} onClick={handleGoogleSignIn} className="w-full">
+                {isGoogleLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <GoogleIcon />
+                )}
+                Accedi con Google
+              </Button>
+
+              <p className="text-center text-sm text-muted-foreground pt-2">
                 Non hai un account?{" "}
                 <Link href="/register" className="font-medium text-primary hover:underline">
                   Registrati qui

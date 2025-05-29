@@ -8,9 +8,11 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  GoogleAuthProvider, // Aggiunto
+  signInWithPopup,    // Aggiunto
   type User,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase"; // Assicurati che il percorso sia corretto
+import { auth } from "@/lib/firebase"; 
 import type { Auth } from "firebase/auth";
 
 interface AuthContextType {
@@ -18,6 +20,7 @@ interface AuthContextType {
   loading: boolean;
   signUp: typeof createUserWithEmailAndPassword;
   signIn: typeof signInWithEmailAndPassword;
+  signInWithGoogle: () => Promise<any>; // Aggiunta funzione signInWithGoogle
   signOut: () => Promise<void>;
 }
 
@@ -51,6 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return signInWithEmailAndPassword(auth as Auth, email, password);
   };
 
+  const signInWithGoogle = () => {
+    const provider = new GoogleAuthProvider();
+    return signInWithPopup(auth as Auth, provider);
+  };
+
   const signOut = () => {
     return firebaseSignOut(auth as Auth);
   };
@@ -60,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signUp,
     signIn,
+    signInWithGoogle, // Aggiunto al valore del contesto
     signOut,
   };
 
