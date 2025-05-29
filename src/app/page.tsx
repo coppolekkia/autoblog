@@ -1,3 +1,4 @@
+
 // src/app/page.tsx
 "use client";
 
@@ -15,13 +16,11 @@ import { useAuth } from "@/contexts/auth-context";
 // --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
 // !! IMPORTANTE !!
 // Questo è un metodo TEMPORANEO e NON SICURO per identificare un admin, solo a scopo dimostrativo.
-// In un'applicazione di produzione, DEVI usare un metodo sicuro come Firebase Custom Claims
-// o un ruolo memorizzato in un database backend sicuro.
-// NON usare questo controllo email hardcodato in un'applicazione live.
+// In un'applicazione di produzione, DEVI usare un metodo sicuro come Firebase Custom Claims.
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
 // --- FINE IDENTIFICAZIONE ADMIN TEMPORANEA ---
 
-// Placeholder data for blog posts - Mantenuto per la vista BlogFeedView
+// Placeholder data for blog posts
 const placeholderPosts = [
   {
     id: 1,
@@ -218,17 +217,7 @@ export default function HomePage() {
                   </span>
                 )}
                  <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                {!isAdmin && ( // Mostra il pulsante Dashboard solo se l'utente NON è admin
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href="/dashboard">Dashboard</Link>
-                  </Button>
-                )}
-                {/* L'admin non ha un pulsante "Dashboard" qui, perché la homepage è la sua dashboard.
-                    Potremmo aggiungere un pulsante di Logout qui direttamente se necessario,
-                    ma per ora il logout è gestito dalla AppLayout se l'admin naviga in altre sezioni.
-                    Se l'admin resta solo sulla homepage, non vedrà mai AppLayout.
-                    Per coerenza, il logout può essere aggiunto anche qui.
-                */}
+                {/* Il pulsante Dashboard per utenti normali loggati è stato rimosso in quanto il login è solo per admin */}
                  <Button
                     variant="ghost"
                     size="sm"
@@ -251,9 +240,7 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                <Button variant="default" asChild>
-                  <Link href="/register">Registrati</Link>
-                </Button>
+                {/* Pulsante Registrati rimosso */}
               </>
             )}
           </nav>

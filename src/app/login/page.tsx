@@ -1,3 +1,4 @@
+
 // app/login/page.tsx
 "use client";
 
@@ -29,6 +30,9 @@ const formSchema = z.object({
 
 type LoginFormValues = z.infer<typeof formSchema>;
 
+// !! IMPORTANTE !! Replicato da src/app/page.tsx per coerenza nell'identificazione dell'admin
+const ADMIN_EMAIL = "coppolek@gmail.com";
+
 export default function LoginPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = React.useState(false);
@@ -46,19 +50,31 @@ export default function LoginPage() {
 
   React.useEffect(() => {
     if (currentUser) {
-      router.push("/dashboard");
+      // Se l'utente è l'admin, reindirizza alla homepage (/) che è la sua dashboard
+      // Altrimenti (teoricamente non dovrebbe succedere se la registrazione è disabilitata, ma per sicurezza)
+      // reindirizza alla dashboard generica (che a sua volta potrebbe reindirizzare l'admin a /)
+      if (currentUser.email === ADMIN_EMAIL) {
+        router.push("/");
+      } else {
+        router.push("/dashboard"); // O reindirizza a / se non ci sono dashboard per non-admin
+      }
     }
   }, [currentUser, router]);
 
   const onSubmit: SubmitHandler<LoginFormValues> = async (data) => {
     setIsLoading(true);
     try {
-      await signIn(data.email, data.password);
+      const userCredential = await signIn(data.email, data.password);
       toast({
         title: "Accesso Riuscito!",
-        description: "Benvenuto kembali!",
+        description: "Benvenuto Amministratore!",
       });
-      router.push("/dashboard");
+      // Il redirect viene gestito dall'useEffect sopra
+      // if (userCredential.user.email === ADMIN_EMAIL) {
+      //   router.push("/");
+      // } else {
+      //   router.push("/dashboard");
+      // }
     } catch (error: any) {
       console.error("Errore di accesso:", error);
       let errorMessage = "Si è verificato un errore imprevisto. Riprova.";
@@ -81,9 +97,9 @@ export default function LoginPage() {
       await signInWithGoogle();
       toast({
         title: "Accesso con Google Riuscito!",
-        description: "Benvenuto!",
+        description: "Benvenuto Amministratore!",
       });
-      router.push("/dashboard");
+      // Il redirect viene gestito dall'useEffect sopra
     } catch (error: any) {
       console.error("Errore di accesso con Google:", error);
       toast({
@@ -96,7 +112,7 @@ export default function LoginPage() {
     }
   };
   
-  if (currentUser && !isLoading && !isGoogleLoading) { // Modificato per controllare anche i loading state prima del redirect/loader
+  if (currentUser && !isLoading && !isGoogleLoading) { 
     return (
       <div className="container mx-auto flex justify-center items-center min-h-screen">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -107,13 +123,13 @@ export default function LoginPage() {
   return (
     <div className="container mx-auto flex flex-col items-center justify-center min-h-screen py-12">
       <PageHeader
-        title="Accedi"
-        description="Accedi al tuo account per continuare."
+        title="Accesso Amministratore"
+        description="Accedi al pannello di amministrazione."
       />
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader>
-          <CardTitle>Login</CardTitle>
-          <CardDescription>Inserisci la tua email e password per accedere.</CardDescription>
+          <CardTitle>Login Amministrazione</CardTitle>
+          <CardDescription>Inserisci le tue credenziali per gestire il sito.</CardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -128,7 +144,7 @@ export default function LoginPage() {
                       <Input
                         id="email"
                         type="email"
-                        placeholder="tuamail@esempio.com"
+                        placeholder="admin@esempio.com"
                         {...field}
                         disabled={isLoading || isGoogleLoading}
                       />
@@ -175,7 +191,7 @@ export default function LoginPage() {
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
                   <span className="bg-card px-2 text-muted-foreground">
-                    Oppure continua con
+                    Oppure accedi con
                   </span>
                 </div>
               </div>
@@ -188,13 +204,6 @@ export default function LoginPage() {
                 )}
                 Accedi con Google
               </Button>
-
-              <p className="text-center text-sm text-muted-foreground pt-2">
-                Non hai un account?{" "}
-                <Link href="/register" className="font-medium text-primary hover:underline">
-                  Registrati qui
-                </Link>
-              </p>
             </CardFooter>
           </form>
         </Form>

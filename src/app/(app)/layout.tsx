@@ -1,3 +1,4 @@
+
 // app/(app)/layout.tsx
 "use client";
 
@@ -21,7 +22,7 @@ import { Icons } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/auth-context";
-import { LogIn, LogOut, UserPlus, UserCircle } from "lucide-react";
+import { LogIn, LogOut, UserPlus, UserCircle, Loader2 } from "lucide-react"; // Aggiunto Loader2
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -63,16 +64,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   };
 
   if (loading) {
-    // Puoi mostrare uno skeleton loader qui se preferisci
     return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-16 w-16 animate-spin text-primary" /></div>;
   }
+
+  // Se non c'è utente (e il login è solo per admin), non dovrebbe arrivare qui,
+  // ma gestiamo il caso per sicurezza o per vecchi utenti non-admin.
+  // L'admin viene reindirizzato a / dalla logica in (app)/page.tsx, quindi non vedrà questo layout.
+  // Questo layout sarà quindi principalmente per gli strumenti accessibili dall'admin.
 
   return (
     <SidebarProvider defaultOpen>
       <div className="flex min-h-screen">
         <Sidebar collapsible="icon" className="border-r">
           <SidebarHeader className="p-4">
-            <Link href="/dashboard" className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2"> {/* Link alla homepage admin */}
               <Icons.AppLogo className="h-8 w-8 text-primary" />
               <span className="text-lg font-semibold text-foreground group-data-[collapsible=icon]:hidden">
                 {siteConfig.name}
@@ -100,26 +105,23 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </ScrollArea>
           </SidebarContent>
            <SidebarFooter className="p-4 mt-auto border-t">
-            {currentUser ? (
+            {currentUser ? ( // Questo sarà sempre l'admin se la logica funziona
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="w-full justify-start p-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10">
                     <Avatar className="h-8 w-8 group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-6">
-                      <AvatarImage src={currentUser.photoURL || undefined} alt={currentUser.email || "Utente"} />
+                      <AvatarImage src={currentUser.photoURL || undefined} alt={currentUser.email || "Admin"} />
                       <AvatarFallback>{getAvatarFallback(currentUser.email)}</AvatarFallback>
                     </Avatar>
                     <div className="ml-2 text-left group-data-[collapsible=icon]:hidden">
                       <p className="text-sm font-medium truncate">{currentUser.email}</p>
+                      <p className="text-xs text-muted-foreground">Amministratore</p>
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="top" align="start" className="w-56">
-                  <DropdownMenuLabel>Il Mio Account</DropdownMenuLabel>
+                  <DropdownMenuLabel>Account Amministratore</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {/* <DropdownMenuItem>
-                    <UserCircle className="mr-2 h-4 w-4" />
-                    <span>Profilo</span>
-                  </DropdownMenuItem> */}
                   <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:text-red-600 focus:bg-red-50">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Logout</span>
@@ -127,6 +129,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
+              // Questo blocco non dovrebbe essere raggiunto se il login è solo per admin
+              // e l'accesso a (app) richiede autenticazione.
               <div className="flex flex-col gap-2 group-data-[collapsible=icon]:items-center">
                 <Button asChild variant="default" className="w-full group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:p-0">
                   <Link href="/login">
@@ -134,12 +138,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     <span className="group-data-[collapsible=icon]:hidden ml-2">Login</span>
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="w-full group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:p-0">
-                  <Link href="/register">
-                    <UserPlus className="h-5 w-5 group-data-[collapsible=icon]:m-auto" />
-                    <span className="group-data-[collapsible=icon]:hidden ml-2">Registrati</span>
-                  </Link>
-                </Button>
+                {/* Pulsante Registrati rimosso dalla sidebar */}
               </div>
             )}
           </SidebarFooter>
@@ -149,14 +148,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <div className="md:hidden">
               <SidebarTrigger />
             </div>
-             {/* Bottone Utente per Mobile Header */}
-            {currentUser && (
+            {currentUser && ( // Sarà l'admin
               <div className="md:hidden">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={currentUser.photoURL || undefined} alt={currentUser.email || "Utente"} />
+                        <AvatarImage src={currentUser.photoURL || undefined} alt={currentUser.email || "Admin"} />
                         <AvatarFallback>{getAvatarFallback(currentUser.email)}</AvatarFallback>
                       </Avatar>
                     </Button>
