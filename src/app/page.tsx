@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { siteConfig } from '@/config/site';
-import { ArrowRight, MessageSquare, ThumbsUp, UserCog, Shield, Newspaper, Loader2 } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Newspaper, Loader2, UserCog } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 
 // --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/auth-context";
 // In un'applicazione di produzione, DEVI usare un metodo sicuro come Firebase Custom Claims
 // o un ruolo memorizzato in un database backend sicuro.
 // NON usare questo controllo email hardcodato in un'applicazione live.
-const ADMIN_EMAIL = "admin@example.com"; // SOSTITUISCI con un'email che puoi usare per i test
+const ADMIN_EMAIL = "coppolek@gmail.com"; // AGGIORNATO EMAIL ADMIN
 // --- FINE IDENTIFICAZIONE ADMIN TEMPORANEA ---
 
 // Placeholder data for blog posts
