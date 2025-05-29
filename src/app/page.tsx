@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 // siteConfig non è più usato qui per il nome, useremo il context
 import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3 } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
-import { useSiteCustomization } from "@/contexts/site-customization-context"; // Importa il nuovo context
+import { useSiteCustomization } from "@/contexts/site-customization-context"; 
 
 // --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
@@ -67,39 +67,58 @@ function AdminNewsSiteView() {
   const { 
     siteTitle: currentGlobalTitle, 
     setSiteTitleState, 
-    bgHue: currentGlobalHue, 
+    bgHue: currentGlobalBgHue, 
     setBgHueState, 
-    bgSaturation: currentGlobalSaturation, 
+    bgSaturation: currentGlobalBgSaturation, 
     setBgSaturationState, 
-    bgLightness: currentGlobalLightness, 
+    bgLightness: currentGlobalBgLightness, 
     setBgLightnessState,
+    cardHue: currentGlobalCardHue,
+    setCardHueState,
+    cardSaturation: currentGlobalCardSaturation,
+    setCardSaturationState,
+    cardLightness: currentGlobalCardLightness,
+    setCardLightnessState,
     applyCustomization 
   } = useSiteCustomization();
 
   const [localTitle, setLocalTitle] = useState(currentGlobalTitle);
-  const [localHue, setLocalHue] = useState(currentGlobalHue);
-  const [localSaturation, setLocalSaturation] = useState(currentGlobalSaturation);
-  const [localLightness, setLocalLightness] = useState(currentGlobalLightness);
+  
+  const [localBgHue, setLocalBgHue] = useState(currentGlobalBgHue);
+  const [localBgSaturation, setLocalBgSaturation] = useState(currentGlobalBgSaturation);
+  const [localBgLightness, setLocalBgLightness] = useState(currentGlobalBgLightness);
+
+  const [localCardHue, setLocalCardHue] = useState(currentGlobalCardHue);
+  const [localCardSaturation, setLocalCardSaturation] = useState(currentGlobalCardSaturation);
+  const [localCardLightness, setLocalCardLightness] = useState(currentGlobalCardLightness);
+
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sincronizza lo stato locale se lo stato globale cambia (es. da localStorage all'avvio)
+  // Sincronizza lo stato locale se lo stato globale cambia
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
-  useEffect(() => setLocalHue(currentGlobalHue), [currentGlobalHue]);
-  useEffect(() => setLocalSaturation(currentGlobalSaturation), [currentGlobalSaturation]);
-  useEffect(() => setLocalLightness(currentGlobalLightness), [currentGlobalLightness]);
+  
+  useEffect(() => setLocalBgHue(currentGlobalBgHue), [currentGlobalBgHue]);
+  useEffect(() => setLocalBgSaturation(currentGlobalBgSaturation), [currentGlobalBgSaturation]);
+  useEffect(() => setLocalBgLightness(currentGlobalBgLightness), [currentGlobalBgLightness]);
+
+  useEffect(() => setLocalCardHue(currentGlobalCardHue), [currentGlobalCardHue]);
+  useEffect(() => setLocalCardSaturation(currentGlobalCardSaturation), [currentGlobalCardSaturation]);
+  useEffect(() => setLocalCardLightness(currentGlobalCardLightness), [currentGlobalCardLightness]);
 
   const handleSaveChanges = () => {
     setIsSaving(true);
     setSiteTitleState(localTitle);
-    setBgHueState(localHue);
-    setBgSaturationState(localSaturation);
-    setBgLightnessState(localLightness);
-    // Applica immediatamente e salva in localStorage
+    
+    setBgHueState(localBgHue);
+    setBgSaturationState(localBgSaturation);
+    setBgLightnessState(localBgLightness);
+
+    setCardHueState(localCardHue);
+    setCardSaturationState(localCardSaturation);
+    setCardLightnessState(localCardLightness);
+    
     applyCustomization(); 
-    // Non è necessario aspettare applyCustomization perché aggiorna lo stato del context che poi viene salvato da un useEffect nel context.
-    // Ma per la UI, chiamiamo applyCustomization qui per forzare l'effetto.
-    setTimeout(() => setIsSaving(false), 500); // Simula salvataggio
-    // Potresti aggiungere un toast di conferma qui
+    setTimeout(() => setIsSaving(false), 500); 
   };
 
   return (
@@ -148,23 +167,43 @@ function AdminNewsSiteView() {
                   className="mt-1" 
                 />
               </div>
-              <div>
-                <Label>Colore Sfondo (HSL)</Label>
-                <div className="grid grid-cols-3 gap-2 mt-1">
+              
+              <div className="space-y-1">
+                <Label>Colore Sfondo Principale (HSL)</Label>
+                <div className="grid grid-cols-3 gap-2">
                   <div>
                     <Label htmlFor="bgHue" className="text-xs text-muted-foreground">H (0-360)</Label>
-                    <Input id="bgHue" type="number" min="0" max="360" value={localHue} onChange={(e) => setLocalHue(e.target.value)} placeholder="45" />
+                    <Input id="bgHue" type="number" min="0" max="360" value={localBgHue} onChange={(e) => setLocalBgHue(e.target.value)} placeholder="45" />
                   </div>
                   <div>
                     <Label htmlFor="bgSaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
-                    <Input id="bgSaturation" type="number" min="0" max="100" value={localSaturation} onChange={(e) => setLocalSaturation(e.target.value)} placeholder="25" />
+                    <Input id="bgSaturation" type="number" min="0" max="100" value={localBgSaturation} onChange={(e) => setLocalBgSaturation(e.target.value)} placeholder="25" />
                   </div>
                   <div>
                     <Label htmlFor="bgLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
-                    <Input id="bgLightness" type="number" min="0" max="100" value={localLightness} onChange={(e) => setLocalLightness(e.target.value)} placeholder="96" />
+                    <Input id="bgLightness" type="number" min="0" max="100" value={localBgLightness} onChange={(e) => setLocalBgLightness(e.target.value)} placeholder="96" />
                   </div>
                 </div>
               </div>
+
+              <div className="space-y-1">
+                <Label>Colore Sfondo Contenuto (HSL)</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label htmlFor="cardHue" className="text-xs text-muted-foreground">H (0-360)</Label>
+                    <Input id="cardHue" type="number" min="0" max="360" value={localCardHue} onChange={(e) => setLocalCardHue(e.target.value)} placeholder="45" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cardSaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
+                    <Input id="cardSaturation" type="number" min="0" max="100" value={localCardSaturation} onChange={(e) => setLocalCardSaturation(e.target.value)} placeholder="25" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cardLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
+                    <Input id="cardLightness" type="number" min="0" max="100" value={localCardLightness} onChange={(e) => setLocalCardLightness(e.target.value)} placeholder="96" />
+                  </div>
+                </div>
+              </div>
+
               <Button onClick={handleSaveChanges} disabled={isSaving} className="w-full mt-2">
                 {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Edit3 className="mr-2 h-4 w-4" />}
                 Salva Personalizzazioni
@@ -288,11 +327,11 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background" data-page-id="home-page-main-wrapper"> {/* Usa bg-background qui */}
+    <div className="min-h-screen flex flex-col bg-background" data-page-id="home-page-main-wrapper">
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            <span className="font-bold text-xl text-primary">{siteTitle}</span> {/* Usa siteTitle dal context */}
+            <span className="font-bold text-xl text-primary">{siteTitle}</span>
           </Link>
           <nav className="flex items-center space-x-2">
             {currentUser ? (
@@ -304,7 +343,6 @@ export default function HomePage() {
                   </span>
                 )}
                 <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                {/* Non mostrare il pulsante Dashboard se l'utente è admin (la homepage è la sua dashboard) */}
                 {!isAdmin && (
                    <Button variant="outline" size="sm" asChild>
                      <Link href="/dashboard">Dashboard</Link>
@@ -331,7 +369,6 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                {/* Pulsante Registrati rimosso perché la registrazione è solo per admin */}
               </>
             )}
           </nav>
@@ -344,7 +381,7 @@ export default function HomePage() {
 
       <footer className="py-8 mt-12 border-t bg-background">
         <div className="container mx-auto text-center text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} {siteTitle}. Tutti i diritti riservati.</p> {/* Usa siteTitle dal context */}
+          <p>&copy; {new Date().getFullYear()} {siteTitle}. Tutti i diritti riservati.</p>
           <p className="text-sm">
             Powered by AI for a better driving content experience.
           </p>
