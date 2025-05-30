@@ -65,12 +65,26 @@ const scrapeUrlAndProcessContentFlow = ai.defineFlow(
     try {
       const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
       
-      const { data: htmlContent } = await axios.get(proxyUrl, {
+      const { data: htmlContent, status } = await axios.get(proxyUrl, {
         headers: { 
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         },
-        timeout: 15000 
+        timeout: 30000 // Timeout aumentato a 30 secondi
       });
+
+      if (status !== 200 || typeof htmlContent !== 'string' || htmlContent.toLowerCase().includes('<error>') || htmlContent.toLowerCase().includes('proxy error') || htmlContent.toLowerCase().includes('cors error')) {
+        console.warn(`Il proxy potrebbe aver restituito un errore o contenuto non valido per ${url}. Status: ${status}. Contenuto ricevuto: ${htmlContent.substring(0,200)}...`);
+        return { 
+            processedTitle: '', 
+            processedContent: '',
+            metaDescription: '',
+            seoKeywords: [],
+            originalUrlScraped: url,
+            extractedImageUrl: undefined,
+            error: `Il proxy (allorigins.win) non è riuscito a recuperare il contenuto da ${url} o ha restituito un contenuto non valido (es. pagina di errore del proxy). Status: ${status}.`
+        };
+      }
+      
       const $ = cheerio.load(htmlContent);
 
       // Extract title
@@ -83,26 +97,21 @@ const scrapeUrlAndProcessContentFlow = ai.defineFlow(
       let imageUrl = $('meta[property="og:image"]').attr('content');
       if (!imageUrl) imageUrl = $('meta[name="twitter:image"]').attr('content');
       
-      // Fallback to first image in article if meta tags are missing
       if (!imageUrl) {
         const mainContentSelectors = 'article, main, .content, .entry-content, .post-content, .article-body, #content, #main, #article';
         const $mainContent = $(mainContentSelectors).first();
         if ($mainContent.length) {
             imageUrl = $mainContent.find('img').first().attr('src');
         } else {
-            // Fallback: first image in body if no specific content area found
             imageUrl = $('body').find('img').first().attr('src');
         }
       }
 
       if (imageUrl) {
         try {
-          // Ensure URL is absolute
           const absoluteImageUrl = new URL(imageUrl, basePageUrl.origin);
           extractedImageUrl = absoluteImageUrl.href;
         } catch (e) {
-          // If imageUrl is not a valid relative or absolute path, it might be a data URI or malformed.
-          // We'll try to use it as is if it looks like a URL.
           if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://') || imageUrl.startsWith('data:image')) {
             extractedImageUrl = imageUrl;
           } else {
@@ -111,8 +120,6 @@ const scrapeUrlAndProcessContentFlow = ai.defineFlow(
         }
       }
 
-
-      // Remove script and style tags first to clean up
       $('script, style, noscript, iframe, header, footer, nav, aside, form, img, svg, video, audio, link[rel="stylesheet"], link[rel="icon"], link[rel="shortcut icon"]').remove();
       
       let mainContentElement = $('article').first();
@@ -146,12 +153,20 @@ const scrapeUrlAndProcessContentFlow = ai.defineFlow(
       }
 
     } catch (e: any) {
-      console.error(`Errore durante lo scraping di ${url} (via proxy):`, e.message);
-      let errorMessage = e.message;
-      if (axios.isAxiosError(e) && e.response) {
-        errorMessage = `Request failed with status code ${e.response.status} via proxy.`;
-      } else if (e.code === 'ECONNABORTED') {
-        errorMessage = 'Request timed out via proxy.';
+      console.error(`Errore durante lo scraping di ${url} (via proxy):`, e);
+      let errorMessage = "Errore sconosciuto durante lo scraping.";
+      if (axios.isAxiosError(e)) {
+        if (e.code === 'ECONNABORTED' || e.message.toLowerCase().includes('timeout')) {
+           errorMessage = `Timeout della richiesta (${(e.config?.timeout || 30000)/1000}s) durante il tentativo di scraping di ${url} tramite proxy. Il sito potrebbe essere troppo lento, protetto, o il proxy non risponde.`;
+        } else if (e.response) {
+          errorMessage = `Il proxy ha restituito lo stato ${e.response.status} per ${url}.`;
+        } else if (e.request) {
+          errorMessage = `Nessuna risposta ricevuta dal proxy per ${url}. Controlla la connessione o la disponibilità del proxy.`;
+        } else {
+          errorMessage = e.message; 
+        }
+      } else {
+        errorMessage = e.message || "Errore imprevisto durante lo scraping.";
       }
       return { 
         processedTitle: '', 
@@ -183,7 +198,7 @@ const scrapeUrlAndProcessContentFlow = ai.defineFlow(
       console.error(`Errore durante l'elaborazione AI del contenuto estratto da ${url}:`, e);
       return { 
         processedTitle: extractedTitle, 
-        processedContent: extractedBody, // Return scraped content even if AI fails
+        processedContent: extractedBody, 
         metaDescription: '',
         seoKeywords: [],
         originalUrlScraped: url,
@@ -193,4 +208,3 @@ const scrapeUrlAndProcessContentFlow = ai.defineFlow(
     }
   }
 );
-
