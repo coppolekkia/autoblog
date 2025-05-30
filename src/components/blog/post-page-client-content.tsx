@@ -42,7 +42,7 @@ async function fetchActiveBanners(): Promise<Banner[]> {
   console.log('[PostPageClientContent] Attempting to fetch active banners...');
   try {
     const bannersRef = collection(db, "banners");
-    const q = query(bannersRef, where("isActive", "==", true), orderBy("createdAt", "desc")); // Added orderBy for consistency if needed
+    const q = query(bannersRef, where("isActive", "==", true), orderBy("createdAt", "desc"));
     const querySnapshot = await getDocs(q);
     const activeBanners: Banner[] = [];
     querySnapshot.forEach((doc) => {
@@ -52,7 +52,13 @@ async function fetchActiveBanners(): Promise<Banner[]> {
     return activeBanners;
   } catch (error) {
     console.error("[PostPageClientContent] Error fetching active banners:", error);
-    throw error; 
+    // Aggiunto per loggare specificamente l'errore nella console del browser
+    if (error instanceof Error && error.message.includes("firestore/permission-denied")) {
+        console.error("[PostPageClientContent] Firestore permission denied while fetching banners. Check security rules.");
+    } else if (error instanceof Error && error.message.includes("query requires an index")) {
+        console.error("[PostPageClientContent] Firestore query for banners requires an index. Check Firestore indexes.", error);
+    }
+    throw error;
   }
 }
 
@@ -67,9 +73,9 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   const { toast } = useToast();
 
   const { data: activeBanners = [], isLoading: isLoadingBanners, isError: isErrorBanners, error: bannersError } = useQuery<Banner[], Error>({
-    queryKey: ['activeBanners', slug], // Add slug to queryKey if banners could be post-specific
+    queryKey: ['activeBanners', slug],
     queryFn: fetchActiveBanners,
-    staleTime: 5 * 60 * 1000, 
+    staleTime: 5 * 60 * 1000,
   });
 
   const [showPopupBanner, setShowPopupBanner] = useState(false);
@@ -78,15 +84,14 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   useEffect(() => {
     const foundPost = getPostBySlug(slug);
     setPost(foundPost || null);
-    if (!foundPost && !posts.length) { // If posts haven't loaded yet, don't immediately 404
-        console.log("Post not found initially, posts array might be empty or loading.");
+    if (!foundPost && !posts.length) { 
+        console.log("[PostPageClientContent] Post not found initially, posts array might be empty or loading.");
     } else if (!foundPost && posts.length > 0) {
-        console.log(`Post with slug "${slug}" not found in PostsContext.`);
-        // notFound(); // Delay calling notFound until posts are confirmed loaded and post is still not found
+        console.log(`[PostPageClientContent] Post with slug "${slug}" not found in PostsContext.`);
     }
   }, [slug, getPostBySlug, posts]);
 
-  // Effect to call notFound if post is definitively not found after posts have loaded
+
   useEffect(() => {
     if (posts.length > 0 && post === null) {
         notFound();
@@ -107,14 +112,17 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
       console.log('[PostPageClientContent] Banners are loading...');
     }
     if (isErrorBanners) {
-      console.error('[PostPageClientContent] Error loading banners from useQuery:', bannersError);
+      console.error('[PostPageClientContent] Error loading banners from useQuery hook:', bannersError);
     }
     if (!isLoadingBanners && !isErrorBanners) {
       console.log('[PostPageClientContent] Banners fetched (or cache used), count:', activeBanners.length);
+      if (activeBanners.length === 0) {
+        console.warn('[PostPageClientContent] No active banners found. Check Firestore data and security rules for "banners" collection.');
+      }
       const popupBanner = activeBanners.find(b => b.placement === 'popup');
       if (popupBanner) {
         console.log('[PostPageClientContent] Popup banner found:', popupBanner.name);
-        const popupShownKey = `popupShown_${popupBanner.id}_${slug}`; // Make session storage key post-specific
+        const popupShownKey = `popupShown_${popupBanner.id}_${slug}`;
         const popupShown = sessionStorage.getItem(popupShownKey);
         if (!popupShown) {
           console.log('[PostPageClientContent] Showing popup banner:', popupBanner.name);
@@ -154,7 +162,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
       console.error('Errore durante liscrizione alla newsletter:', error);
       toast({
         title: "Errore Iscrizione",
-        description: "Impossibile completare l'iscrizione. Riprova più tardi.",
+        description: (error instanceof Error ? error.message : "Impossibile completare l'iscrizione.") + " Verifica le regole Firestore per 'newsletterSubscriptions'.",
         variant: "destructive",
       });
     } finally {
@@ -166,7 +174,6 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     if (!post || posts.length <= 1) {
       return [];
     }
-    // Simple logic: filter out current post, take first N. Could be more sophisticated.
     return posts
       .filter(p => p.id !== post.id)
       .slice(0, MAX_RELATED_POSTS);
@@ -184,11 +191,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     );
   }
 
-  // If posts have loaded and post is still not found (is null), trigger 404.
-  // This check is now more robust due to the useEffect handling notFound.
   if (!post) {
-     // It's possible this component renders before notFound() in useEffect takes effect.
-     // Render minimal or a loader again to let useEffect handle the notFound call.
      return (
         <div className="flex min-h-screen w-full items-center justify-center bg-background">
           <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -200,8 +203,8 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   const renderContentWithInArticleBanner = () => {
     if (!post.content) return null;
 
-    const paragraphs = post.content.split(/\n\s*\n/); // Split by one or more newlines (double newlines)
-    const bannerInsertionPoint = paragraphs.length > 1 ? 1 : 0; // Insert after 1st paragraph, or at start if only one
+    const paragraphs = post.content.split(/\n\s*\n/); 
+    const bannerInsertionPoint = paragraphs.length > 1 ? 1 : 0; 
 
     return (
       <>
@@ -211,7 +214,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
         
         {afterContentBannerData && bannerInsertionPoint < paragraphs.length && (
           <div 
-            className="my-6 p-4 border rounded-md shadow-sm bg-card" // Consistent styling
+            className="my-6 p-4 border rounded-md shadow-sm bg-card" 
             dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }} 
           />
         )}
@@ -220,17 +223,17 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
           <p key={`post-banner-p-${i}`} className="whitespace-pre-wrap">{p}</p>
         ))}
         
-        {/* If banner was meant to be at the very end and there was only one paragraph initially */}
+        
         {afterContentBannerData && bannerInsertionPoint === paragraphs.length && paragraphs.length > 0 && (
            <div 
-            className="my-6 p-4 border rounded-md shadow-sm bg-card" // Consistent styling
+            className="my-6 p-4 border rounded-md shadow-sm bg-card" 
             dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }} 
           />
         )}
-         {/* If content is empty and banner should show */}
+        
         {afterContentBannerData && paragraphs.length === 0 && (
            <div 
-            className="my-6 p-4 border rounded-md shadow-sm bg-card" // Consistent styling
+            className="my-6 p-4 border rounded-md shadow-sm bg-card" 
             dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }} 
           />
         )}
@@ -256,7 +259,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                   </span>
                 )}
                 <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                {!isAdmin && ( // Only show dashboard link if user is NOT admin
+                {!isAdmin && ( 
                   <Button variant="outline" size="sm" asChild>
                     <Link href="/dashboard">Dashboard</Link>
                   </Button>
@@ -269,8 +272,10 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                     const { auth } = await import('@/lib/firebase');
                     try {
                       await firebaseSignOut(auth);
+                      toast({ title: "Logout Effettuato", description: "Sei stato disconnesso." });
                     } catch (error) {
                       console.error("Errore logout dall'header del post:", error);
+                       toast({ title: "Errore Logout", description: "Impossibile effettuare il logout.", variant: "destructive" });
                     }
                   }}
                 >
@@ -282,7 +287,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                {/* Pulsante Registrati Rimosso */}
+                
               </>
             )}
           </nav>
@@ -407,21 +412,28 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
         {popupBannerContent && (
           <AlertDialog open={showPopupBanner} onOpenChange={setShowPopupBanner}>
             <AlertDialogContent className="max-w-md">
-              <AlertDialogHeader>
+              <AlertDialogHeader className="relative"> {/* Added relative for positioning X */}
+                {/* Ensure XIcon is imported or use a valid icon */}
                 <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="absolute top-2 right-2 h-6 w-6 z-10" 
+                    className="absolute top-2 right-2 h-6 w-6 z-10" // Adjusted positioning
                     onClick={() => setShowPopupBanner(false)}
                     aria-label="Chiudi popup"
                 >
                     <XIcon className="h-4 w-4" />
                     <span className="sr-only">Chiudi</span>
                 </Button>
+                {/* Optional: Add a title if needed, or remove AlertDialogTitle if contentHTML has its own title */}
+                {/* <AlertDialogTitle>Annuncio</AlertDialogTitle> */}
               </AlertDialogHeader>
               <AlertDialogDescription asChild> 
                 <div dangerouslySetInnerHTML={{ __html: popupBannerContent }} />
               </AlertDialogDescription>
+              {/* Optional: Add a cancel button if it makes sense for your popup */}
+              {/* <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setShowPopupBanner(false)}>Chiudi</AlertDialogCancel>
+              </AlertDialogFooter> */}
             </AlertDialogContent>
           </AlertDialog>
         )}
