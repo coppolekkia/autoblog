@@ -28,7 +28,7 @@ const ProcessBlogPostOutputSchemaInternal = z.object({
   processedTitle: z.string().describe('Il titolo del post ottimizzato per SEO.'),
   processedContent: z
     .string()
-    .describe('Il contenuto del post riscritto e ottimizzato per SEO e engagement.'),
+    .describe('Il contenuto del post riscritto e ottimizzato per SEO e engagement, con suggerimenti per link interni.'),
   metaDescription: z
     .string()
     .describe('La meta description generata per il post.'),
@@ -42,7 +42,7 @@ export type ProcessBlogPostOutput = z.infer<typeof ProcessBlogPostOutputSchemaIn
 const optimizeContentPrompt = ai.definePrompt({
   name: 'optimizeBlogPostContentPrompt',
   input: { schema: z.object({ originalContent: z.string(), category: z.string(), processedTitle: z.string() }) },
-  output: { schema: z.object({ processedContent: z.string().describe("Il contenuto del post riscritto e ottimizzato.") }) },
+  output: { schema: z.object({ processedContent: z.string().describe("Il contenuto del post riscritto e ottimizzato, con suggerimenti per link interni.") }) },
   prompt: `Sei un esperto redattore di contenuti specializzato nell'ottimizzazione di post di blog per leggibilità, engagement e SEO, specifici per categoria.
 Dato il seguente contenuto originale, il suo titolo (già ottimizzato per SEO) e la sua categoria, riscrivi e migliora il contenuto.
 Assicurati che il tono sia appropriato per la categoria. Migliora la chiarezza, il flusso e incorpora la terminologia pertinente.
@@ -54,6 +54,10 @@ Contenuto Originale: {{{originalContent}}}
 Categoria: {{{category}}}
 
 Il tuo obiettivo principale è rendere il contenuto pronto per la pubblicazione in un blog di alta qualità.
+Durante la riscrittura, identifica le opportunità per inserire link interni ad altri argomenti correlati che potrebbero essere trattati sul blog.
+Per questi link interni suggeriti, usa il formato: \`[approfondisci: NOME_ARGOMENTO_CORRELATO]\`.
+Ad esempio, se stai parlando di "motori elettrici" e pensi che un articolo su "batterie per auto elettriche" sarebbe un buon link interno, scriveresti: "... dettagli sui motori elettrici. [approfondisci: batterie per auto elettriche]".
+Non inventare URL, usa solo questo formato placeholder.
 Restituisci solo il contenuto riformulato e ottimizzato.`,
 });
 
@@ -107,3 +111,4 @@ const processBlogPostFlow = ai.defineFlow(
     };
   }
 );
+
