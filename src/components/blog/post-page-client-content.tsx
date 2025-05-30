@@ -7,15 +7,18 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context";
-import { usePosts } from "@/contexts/posts-context"; // Import usePosts
+import { usePosts } from "@/contexts/posts-context"; 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/shared/page-header';
-import { ArrowLeft, ThumbsUp, MessageSquare, Loader2, Shield } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, MessageSquare, Loader2, Shield, Mail, Megaphone } from 'lucide-react';
 import type { Post } from '@/types/blog';
 import { notFound } from 'next/navigation'; 
-import CommentForm from './comment-form'; // Import CommentForm
-import CommentList from './comment-list'; // Import CommentList
+// CommentForm e CommentList non sono più necessari
+// import CommentForm from './comment-form';
+// import CommentList from './comment-list';
 
 interface PostPageClientContentProps {
   slug: string; 
@@ -27,6 +30,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   const { siteTitle } = useSiteCustomization();
   const { getPostBySlug } = usePosts(); 
   const [post, setPost] = useState<Post | undefined | null>(undefined); 
+  const [newsletterEmail, setNewsletterEmail] = useState('');
 
   useEffect(() => {
     const foundPost = getPostBySlug(slug);
@@ -43,6 +47,14 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   }, [siteTitle, post?.title]);
 
   const isAdmin = !authLoading && currentUser?.email === adminEmail;
+
+  const handleNewsletterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    // Qui andrebbe la logica per inviare l'email a un backend/servizio newsletter
+    console.log('Email per newsletter:', newsletterEmail);
+    alert(`Grazie per esserti iscritto con: ${newsletterEmail}! (Funzionalità demo)`);
+    setNewsletterEmail('');
+  };
 
   if (authLoading || post === undefined) { 
     return (
@@ -141,31 +153,55 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
           )}
 
           <div className="prose prose-lg dark:prose-invert max-w-none mb-8 bg-card p-6 rounded-lg shadow-md">
-            {/* Usa dangerouslySetInnerHTML se il contenuto è HTML, altrimenti renderizza come testo semplice */}
-            {/* Per sicurezza, se il contenuto può essere HTML da fonti non fidate, sanitizzalo! */}
-            {/* <div dangerouslySetInnerHTML={{ __html: post.content }} /> */}
             <p className="whitespace-pre-wrap">{post.content}</p>
           </div>
 
-          {/* Sezione Commenti */}
-          <Card className="mt-12 shadow-lg" id="comments">
+          {/* Sezione Iscrizione Newsletter */}
+          <Card className="mt-12 shadow-lg">
             <CardHeader>
               <CardTitle className="text-2xl flex items-center">
-                <MessageSquare className="mr-2 h-6 w-6 text-primary" />
-                Commenti ({post.commentsCount}) {/* Static count for now */}
+                <Mail className="mr-3 h-6 w-6 text-primary" />
+                Iscriviti alla Newsletter
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <CommentForm postId={post.id.toString()} />
-              <CommentList postId={post.id.toString()} />
-            </CardContent>
-            <CardFooter className="flex items-center space-x-2 text-sm text-muted-foreground border-t pt-4 mt-4">
-                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary px-2">
-                    <ThumbsUp className="mr-1 h-4 w-4" />
-                    <span>{post.upvotes}</span>
+              <p className="text-muted-foreground mb-4">
+                Rimani aggiornato con le ultime novità e articoli direttamente nella tua casella di posta.
+              </p>
+              <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-2">
+                <Label htmlFor="newsletter-email" className="sr-only">Email</Label>
+                <Input
+                  id="newsletter-email"
+                  type="email"
+                  placeholder="La tua email"
+                  value={newsletterEmail}
+                  onChange={(e) => setNewsletterEmail(e.target.value)}
+                  required
+                  className="flex-grow"
+                />
+                <Button type="submit" className="w-full sm:w-auto">
+                  Iscriviti
                 </Button>
-            </CardFooter>
+              </form>
+            </CardContent>
           </Card>
+
+          {/* Sezione Annunci Correlati (Placeholder) */}
+          <Card className="mt-8 shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center">
+                <Megaphone className="mr-3 h-5 w-5 text-primary" />
+                Annunci Correlati
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-muted/50 p-4 rounded-md text-center text-muted-foreground">
+                <p>Spazio riservato agli annunci correlati.</p>
+                <p className="text-xs mt-1">(Contenuto placeholder)</p>
+              </div>
+            </CardContent>
+          </Card>
+
         </article>
       </main>
 
@@ -177,3 +213,4 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     </div>
   );
 }
+
