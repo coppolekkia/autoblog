@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react'; // Added useMemo
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context";
 import { usePosts } from "@/contexts/posts-context"; 
@@ -13,29 +13,28 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/shared/page-header';
-import { ArrowLeft, ThumbsUp, MessageSquare, Loader2, Shield, Mail, Megaphone } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, MessageSquare, Loader2, Shield, Mail, Megaphone, Newspaper } from 'lucide-react'; // Added Newspaper
 import type { Post } from '@/types/blog';
 import { notFound } from 'next/navigation'; 
-// CommentForm e CommentList non sono più necessari
-// import CommentForm from './comment-form';
-// import CommentList from './comment-list';
 
 interface PostPageClientContentProps {
   slug: string; 
   adminEmail: string;
 }
 
+const MAX_RELATED_POSTS = 3;
+
 export default function PostPageClientContent({ slug, adminEmail }: PostPageClientContentProps) {
   const { currentUser, loading: authLoading } = useAuth();
   const { siteTitle } = useSiteCustomization();
-  const { getPostBySlug } = usePosts(); 
+  const { posts, getPostBySlug } = usePosts(); 
   const [post, setPost] = useState<Post | undefined | null>(undefined); 
   const [newsletterEmail, setNewsletterEmail] = useState('');
 
   useEffect(() => {
     const foundPost = getPostBySlug(slug);
     setPost(foundPost || null); 
-  }, [slug, getPostBySlug]);
+  }, [slug, getPostBySlug, posts]); // Added posts to dependency array to re-evaluate if posts change
 
 
   useEffect(() => {
@@ -50,11 +49,19 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
 
   const handleNewsletterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Qui andrebbe la logica per inviare l'email a un backend/servizio newsletter
     console.log('Email per newsletter:', newsletterEmail);
     alert(`Grazie per esserti iscritto con: ${newsletterEmail}! (Funzionalità demo)`);
     setNewsletterEmail('');
   };
+
+  const relatedPosts = useMemo(() => {
+    if (!post || posts.length <= 1) {
+      return [];
+    }
+    return posts
+      .filter(p => p.id !== post.id) // Escludi il post corrente
+      .slice(0, MAX_RELATED_POSTS); // Prendi i primi N
+  }, [post, posts]);
 
   if (authLoading || post === undefined) { 
     return (
@@ -186,22 +193,45 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
             </CardContent>
           </Card>
 
-          {/* Sezione Annunci Correlati (Placeholder) */}
-          <Card className="mt-8 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl flex items-center">
-                <Megaphone className="mr-3 h-5 w-5 text-primary" />
-                Annunci Correlati
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-muted/50 p-4 rounded-md text-center text-muted-foreground">
-                <p>Spazio riservato agli annunci correlati.</p>
-                <p className="text-xs mt-1">(Contenuto placeholder)</p>
-              </div>
-            </CardContent>
-          </Card>
-
+          {/* Sezione Articoli Correlati */}
+          {relatedPosts.length > 0 && (
+            <Card className="mt-8 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl flex items-center">
+                  <Newspaper className="mr-3 h-5 w-5 text-primary" /> {/* Changed icon */}
+                  Articoli Correlati
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {relatedPosts.map(relatedPost => (
+                    <Link key={relatedPost.id} href={`/blog/${relatedPost.slug}`} className="group block">
+                      <Card className="overflow-hidden h-full transition-all duration-300 ease-in-out group-hover:shadow-xl hover:border-primary/50">
+                        {relatedPost.imageUrl && (
+                          <div className="aspect-[16/9] overflow-hidden">
+                            <Image
+                              src={relatedPost.imageUrl}
+                              alt={relatedPost.title}
+                              width={300}
+                              height={168}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              data-ai-hint={relatedPost.imageHint || relatedPost.title.split(' ').slice(0,2).join(' ') || "related article"}
+                            />
+                          </div>
+                        )}
+                        <CardHeader className="p-4">
+                          <CardTitle className="text-base font-semibold leading-tight line-clamp-2 group-hover:text-primary">
+                            {relatedPost.title}
+                          </CardTitle>
+                        </CardHeader>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
         </article>
       </main>
 
@@ -213,4 +243,3 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     </div>
   );
 }
-
