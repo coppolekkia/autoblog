@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon, Users, MailCheck } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon, Users, MailCheck, PlusCircle } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context"; 
 import { usePosts } from "@/contexts/posts-context"; 
@@ -22,7 +22,7 @@ import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type 
 import { useToast } from "@/hooks/use-toast";
 import type { Post } from '@/types/blog'; 
 import { db } from '@/lib/firebase'; // Import db
-import { collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore'; // Import firestore functions
+import { collection, getDocs, orderBy, query, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore'; // Import firestore functions
 
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
 
@@ -97,7 +97,7 @@ function BlogFeedView() {
                     <ThumbsUp className="mr-1.5 h-4 w-4" />
                     <span>{post.upvotes}</span>
                   </Button>
-                  <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+                   <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
                     <Link href={`/blog/${post.slug}#comments`}>
                       <span className="inline-flex items-center">
                         <MessageSquare className="mr-1.5 h-4 w-4" />
@@ -108,10 +108,10 @@ function BlogFeedView() {
                 </div>
                 <Button asChild variant="default" size="sm">
                   <Link href={`/blog/${post.slug}`}>
-                    <span className="inline-flex items-center">
-                      Leggi di più
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </span>
+                     <span className="inline-flex items-center">
+                        Leggi di più
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </span>
                   </Link>
                 </Button>
               </div>
@@ -201,6 +201,9 @@ function AdminNewsSiteView() {
   // State for Newsletter Subscribers
   const [newsletterSubscribers, setNewsletterSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [isLoadingSubscribers, setIsLoadingSubscribers] = useState(false);
+  const [newSubscriberEmail, setNewSubscriberEmail] = useState("");
+  const [isAddingSubscriber, setIsAddingSubscriber] = useState(false);
+
 
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
   useEffect(() => setLocalBgHue(currentGlobalBgHue), [currentGlobalBgHue]);
@@ -241,7 +244,7 @@ function AdminNewsSiteView() {
   };
 
   useEffect(() => {
-    fetchNewsletterSubscribers(); // Carica iscritti all'avvio del pannello admin
+    fetchNewsletterSubscribers(); 
   }, []);
 
 
@@ -446,6 +449,35 @@ function AdminNewsSiteView() {
     }
   };
 
+  const handleAddSubscriber = async () => {
+    if (!newSubscriberEmail.trim()) {
+      toast({ title: "Email Mancante", description: "Inserisci un indirizzo email da aggiungere.", variant: "destructive"});
+      return;
+    }
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newSubscriberEmail.trim())) {
+      toast({ title: "Email Non Valida", description: "Inserisci un indirizzo email valido.", variant: "destructive"});
+      return;
+    }
+
+    setIsAddingSubscriber(true);
+    try {
+      await addDoc(collection(db, "newsletterSubscriptions"), {
+        email: newSubscriberEmail.trim(),
+        subscribedAt: serverTimestamp(),
+      });
+      toast({ title: "Iscritto Aggiunto!", description: `${newSubscriberEmail.trim()} è stato aggiunto alla newsletter.`});
+      setNewSubscriberEmail(""); // Clear input
+      fetchNewsletterSubscribers(); // Refresh list
+    } catch (error) {
+      console.error("Errore aggiunta iscritto:", error);
+      toast({ title: "Errore Aggiunta", description: "Impossibile aggiungere l'iscritto.", variant: "destructive"});
+    } finally {
+      setIsAddingSubscriber(false);
+    }
+  };
+
 
   return (
     <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
@@ -453,7 +485,7 @@ function AdminNewsSiteView() {
         title="Pannello Admin & News del Sito"
         description="Benvenuto, Admin! Ecco le ultime attività e gli strumenti di gestione."
       />
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mt-8">
+      <div className="grid md:grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
         {/* Colonna Sinistra/Principale per i tools */}
         <div className="lg:col-span-2 space-y-6">
           <Card className="shadow-lg">
@@ -851,13 +883,47 @@ function AdminNewsSiteView() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-end gap-2">
+                  <div className="flex-grow">
+                    <Label htmlFor="newSubscriberEmail" className="text-xs text-muted-foreground">Nuova Email</Label>
+                    <Input 
+                      id="newSubscriberEmail"
+                      type="email"
+                      placeholder="email@esempio.com"
+                      value={newSubscriberEmail}
+                      onChange={(e) => setNewSubscriberEmail(e.target.value)}
+                      disabled={isAddingSubscriber}
+                      className="h-9"
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleAddSubscriber} 
+                    disabled={isAddingSubscriber || !newSubscriberEmail.trim()}
+                    size="sm"
+                    className="shrink-0"
+                  >
+                    {isAddingSubscriber ? <Loader2 className="animate-spin h-4 w-4" /> : <PlusCircle className="h-4 w-4"/>}
+                  </Button>
+                </div>
+                 <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  disabled // Placeholder per importazione
+                >
+                  Importa Iscritti (Prossimamente)
+                </Button>
+              </div>
+
+
               {isLoadingSubscribers ? (
-                <div className="flex justify-center items-center p-4">
+                <div className="flex justify-center items-center p-4 mt-4">
                   <Loader2 className="animate-spin h-6 w-6 text-primary" />
                   <span className="ml-2">Caricamento iscritti...</span>
                 </div>
               ) : newsletterSubscribers.length > 0 ? (
-                <ul className="space-y-2 max-h-60 overflow-y-auto border p-2 rounded-md">
+                <ul className="space-y-2 max-h-60 overflow-y-auto border p-2 rounded-md mt-4">
                   {newsletterSubscribers.map(sub => (
                     <li key={sub.id} className="text-sm p-1.5 bg-muted/50 rounded-sm">
                       <span className="font-medium">{sub.email}</span> - <span className="text-xs text-muted-foreground">Iscritto il: {sub.subscribedAt}</span>
@@ -865,7 +931,7 @@ function AdminNewsSiteView() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted-foreground">Nessun iscritto alla newsletter al momento.</p>
+                <p className="text-sm text-muted-foreground mt-4 text-center">Nessun iscritto alla newsletter al momento.</p>
               )}
                <Button onClick={fetchNewsletterSubscribers} variant="outline" size="sm" className="mt-4 w-full">
                 {isLoadingSubscribers ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
