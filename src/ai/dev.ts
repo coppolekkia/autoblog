@@ -7,5 +7,6 @@ import '@/ai/flows/generate-meta-description.ts';
 import '@/ai/flows/content-expander.ts';
 import '@/ai/flows/process-blog-post.ts';
 import '@/ai/flows/fetch-feed-items.ts';
-import '@/ai/flows/syndicate-and-process-content.ts'; // Aggiunto nuovo flusso
+import '@/ai/flows/syndicate-and-process-content.ts';
+import '@/ai/flows/scrapeUrlAndProcessContent.ts'; // Aggiunto nuovo flusso
 

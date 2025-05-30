@@ -11,11 +11,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context"; 
 import { processBlogPost, type ProcessBlogPostInput, type ProcessBlogPostOutput } from "@/ai/flows/process-blog-post";
 import { syndicateAndProcessContent, type SyndicateAndProcessContentInput, type SyndicateAndProcessContentOutput, type ProcessedArticleData } from "@/ai/flows/syndicate-and-process-content";
+import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type ScrapedAndProcessedArticleData } from "@/ai/flows/scrapeUrlAndProcessContent"; // Importa il nuovo flusso
 import { useToast } from "@/hooks/use-toast";
 
 // --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
@@ -195,16 +196,22 @@ function AdminNewsSiteView() {
   // State per l'elaborazione manuale AI
   const [originalPostTitle, setOriginalPostTitle] = useState("");
   const [originalPostContent, setOriginalPostContent] = useState("");
-  const [postCategory, setPostCategory] = useState(""); // Categoria per l'elaborazione manuale
+  const [postCategory, setPostCategory] = useState(""); 
   const [isProcessingPostManual, setIsProcessingPostManual] = useState(false);
   const [processedPostDataManual, setProcessedPostDataManual] = useState<ProcessBlogPostOutput | null>(null);
 
   // State per l'importazione e l'elaborazione automatica da feed
   const [feedUrl, setFeedUrl] = useState("");
-  const [defaultFeedCategory, setDefaultFeedCategory] = useState(""); // Categoria per gli articoli del feed
+  const [defaultFeedCategory, setDefaultFeedCategory] = useState(""); 
   const [isProcessingFeed, setIsProcessingFeed] = useState(false);
   const [processedFeedArticles, setProcessedFeedArticles] = useState<ProcessedArticleData[]>([]);
   const [feedProcessingErrors, setFeedProcessingErrors] = useState<{originalTitle?: string, error: string}[]>([]);
+
+  // State per lo scraping da URL
+  const [scrapeUrl, setScrapeUrl] = useState("");
+  const [scrapeCategory, setScrapeCategory] = useState("");
+  const [isScrapingAndProcessing, setIsScrapingAndProcessing] = useState(false);
+  const [scrapedAndProcessedData, setScrapedAndProcessedData] = useState<ScrapedAndProcessedArticleData | null>(null);
 
 
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
@@ -282,7 +289,7 @@ function AdminNewsSiteView() {
     let effectiveFeedUrl = feedUrl.trim();
     if (effectiveFeedUrl && !effectiveFeedUrl.startsWith('http://') && !effectiveFeedUrl.startsWith('https://')) {
       effectiveFeedUrl = `https://${effectiveFeedUrl}`;
-      setFeedUrl(effectiveFeedUrl); // Update state to reflect change in UI if needed, though not strictly necessary here
+      setFeedUrl(effectiveFeedUrl); 
     }
 
     try {
@@ -293,9 +300,9 @@ function AdminNewsSiteView() {
       if (result.errors && result.errors.length > 0) {
         setFeedProcessingErrors(result.errors);
         toast({ 
-          title: "Feed Elaborato con Errori", 
-          description: `Completato, ma ${result.errors.length} articoli hanno avuto problemi. Controlla i dettagli.`, 
-          variant: "default" // Changed to default to be less alarming if some articles are still processed
+          title: "Feed Elaborato con Errori/Note", 
+          description: `Completato, ma ${result.errors.length} messaggi presenti. Controlla i dettagli.`, 
+          variant: "default" 
         });
       } else if (result.processedArticles.length === 0) {
         toast({ title: "Nessun Articolo Elaborato", description: "Il feed potrebbe essere vuoto o gli articoli non idonei.", variant: "default" });
@@ -305,8 +312,6 @@ function AdminNewsSiteView() {
       }
     } catch (error) {
       console.error("Errore durante l'importazione e l'elaborazione del feed:", error);
-      // The error message from Zod will be "L'URL del feed non è valido." if it's a Zod validation error.
-      // Other errors will have their own messages.
       toast({ title: "Errore Elaborazione Feed", description: (error as Error).message || "Si è verificato un errore critico.", variant: "destructive" });
       setFeedProcessingErrors([{error: (error as Error).message || "Errore critico sconosciuto."}]);
     } finally {
@@ -328,6 +333,51 @@ function AdminNewsSiteView() {
 
     toast({ title: "Articolo Caricato per Revisione", description: "I dati elaborati sono pronti nell'editor manuale."});
     document.getElementById('ai-manual-processing-card')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleScrapeAndProcess = async () => {
+    if (!scrapeUrl) {
+      toast({ title: "URL Mancante", description: "Per favore, inserisci un URL da analizzare.", variant: "destructive" });
+      return;
+    }
+    if (!scrapeCategory) {
+      toast({ title: "Categoria Mancante", description: "Per favore, inserisci una categoria per l'articolo da estrarre.", variant: "destructive" });
+      return;
+    }
+    setIsScrapingAndProcessing(true);
+    setScrapedAndProcessedData(null);
+
+    let effectiveScrapeUrl = scrapeUrl.trim();
+    if (effectiveScrapeUrl && !effectiveScrapeUrl.startsWith('http://') && !effectiveScrapeUrl.startsWith('https://')) {
+        effectiveScrapeUrl = `https://${effectiveScrapeUrl}`;
+        setScrapeUrl(effectiveScrapeUrl);
+    }
+
+    try {
+      const input: ScrapeUrlAndProcessContentInput = { url: effectiveScrapeUrl, category: scrapeCategory };
+      const result = await scrapeUrlAndProcessContent(input);
+      
+      if (result.error) {
+        toast({ title: "Errore Estrazione/Elaborazione URL", description: result.error, variant: "destructive" });
+        // Potremmo voler popolare parzialmente se l'estrazione ha funzionato ma l'AI no
+        setScrapedAndProcessedData({
+            processedTitle: result.processedTitle || "Titolo non Estratto",
+            processedContent: result.processedContent || "Contenuto non Estratto",
+            metaDescription: result.metaDescription || "",
+            seoKeywords: result.seoKeywords || [],
+            originalUrlScraped: result.originalUrlScraped,
+            error: result.error
+        });
+      } else {
+        setScrapedAndProcessedData(result);
+        toast({ title: "Contenuto Estratto ed Elaborato!", description: "Il contenuto dell'URL è stato processato con successo." });
+      }
+    } catch (error) {
+      console.error("Errore durante lo scraping e l'elaborazione dell'URL:", error);
+      toast({ title: "Errore Critico Estrazione URL", description: (error as Error).message || "Si è verificato un errore sconosciuto.", variant: "destructive" });
+    } finally {
+      setIsScrapingAndProcessing(false);
+    }
   };
 
 
@@ -378,7 +428,7 @@ function AdminNewsSiteView() {
               
               {feedProcessingErrors.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <h4 className="font-semibold text-sm text-destructive mb-1">Errori Durante Elaborazione Feed:</h4>
+                  <h4 className="font-semibold text-sm text-destructive mb-1">Errori/Note Elaborazione Feed:</h4>
                   {feedProcessingErrors.map((err, index) => (
                     <Card key={`error-${index}`} className="p-2 text-xs bg-destructive/10 border-destructive/30">
                       {err.originalTitle && <p className="font-medium truncate" title={err.originalTitle}>Articolo: {err.originalTitle}</p>}
@@ -427,6 +477,73 @@ function AdminNewsSiteView() {
               )}
             </CardContent>
           </Card>
+
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Rocket className="h-6 w-6 text-primary" />
+                Estrai da URL & Elabora
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="scrapeUrlInput" className="text-muted-foreground">URL da Analizzare</Label>
+                <Input 
+                  id="scrapeUrlInput" 
+                  type="url" 
+                  placeholder="https://esempio.com/articolo" 
+                  value={scrapeUrl}
+                  onChange={(e) => setScrapeUrl(e.target.value)}
+                  disabled={isScrapingAndProcessing}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="scrapeCategoryInput" className="text-muted-foreground">Categoria Articolo</Label>
+                <Input 
+                  id="scrapeCategoryInput" 
+                  type="text" 
+                  placeholder="Es: Recensioni Auto" 
+                  value={scrapeCategory}
+                  onChange={(e) => setScrapeCategory(e.target.value)}
+                  disabled={isScrapingAndProcessing}
+                  className="mt-1"
+                />
+              </div>
+              <Button onClick={handleScrapeAndProcess} disabled={isScrapingAndProcessing || !scrapeUrl || !scrapeCategory} className="w-full">
+                {isScrapingAndProcessing ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2"/>}
+                Estrai ed Elabora con AI
+              </Button> 
+              {scrapedAndProcessedData && (
+                <div className="mt-6 space-y-4 border-t pt-4">
+                  {scrapedAndProcessedData.error && <p className="text-sm text-destructive p-2 border border-destructive bg-destructive/10 rounded-md">{scrapedAndProcessedData.error}</p>}
+                  <div>
+                    <Label className="font-semibold">Titolo Elaborato:</Label>
+                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.processedTitle || "N/D"}</p>
+                  </div>
+                  <div>
+                    <Label className="font-semibold">Meta Description:</Label>
+                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.metaDescription || "N/D"}</p>
+                  </div>
+                  <div>
+                    <Label className="font-semibold">Keywords SEO:</Label>
+                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.seoKeywords.join(', ') || "N/D"}</p>
+                  </div>
+                  <div>
+                    <Label className="font-semibold">Contenuto Elaborato (dall'AI):</Label>
+                    <Textarea 
+                      readOnly 
+                      value={scrapedAndProcessedData.processedContent || "N/D"} 
+                      rows={10} 
+                      className="mt-1 bg-muted text-sm"
+                    />
+                  </div>
+                   <p className="text-xs text-muted-foreground">URL Originale: {scrapedAndProcessedData.originalUrlScraped}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
 
           <Card className="shadow-lg">
             <CardHeader>
@@ -684,6 +801,7 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
+                
               </>
             )}
           </nav>
