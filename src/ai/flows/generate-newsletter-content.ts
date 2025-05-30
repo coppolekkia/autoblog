@@ -13,7 +13,7 @@ import {z} from 'genkit';
 const GenerateNewsletterInputSchema = z.object({
   adminPrompt: z
     .string()
-    .min(10, { message: 'Il prompt deve essere di almeno 10 caratteri.' })
+    .min(1, { message: 'Il prompt non può essere vuoto.' }) // Changed minLength from 10 to 1
     .describe('The prompt or instructions provided by the admin for the newsletter content.'),
   siteTitle: z
     .string()
