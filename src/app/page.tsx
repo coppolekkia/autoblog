@@ -12,13 +12,14 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, PlusCircle, Megaphone, CheckSquare, CircleOff, UserCog, Users, MailCheck, Send } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, PlusCircle, Megaphone, CheckSquare, CircleOff, Users, MailCheck, Send, Newspaper } from 'lucide-react'; // Aggiunto Newspaper
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context";
 import { usePosts } from "@/contexts/posts-context";
 import { processBlogPost, type ProcessBlogPostInput, type ProcessBlogPostOutput } from "@/ai/flows/process-blog-post";
 import { syndicateAndProcessContent, type SyndicateAndProcessContentInput, type SyndicateAndProcessContentOutput, type ProcessedArticleData as FeedProcessedArticleData } from "@/ai/flows/syndicate-and-process-content";
 import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type ScrapedAndProcessedArticleData } from "@/ai/flows/scrapeUrlAndProcessContent";
+
 import { useToast } from "@/hooks/use-toast";
 import type { Post } from '@/types/blog';
 import { db, auth as firebaseAuth } from '@/lib/firebase';
@@ -28,9 +29,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 
 const ADMIN_EMAIL = "coppolek@gmail.com";
-// !!! IMPORTANTE: SOSTITUISCI QUESTO CON L'UID REALE DEL TUO ACCOUNT ADMIN !!!
-// !!! PUOI TROVARLO NELLA CONSOLE FIREBASE -> AUTHENTICATION -> UTENTI !!!
-const ADMIN_UID_FOR_RULES = "INSERISCI_QUI_L_UID_DEL_TUO_ADMIN"; 
+// !!! IMPORTANTE: L'UID QUI SOTTO È STATO RILEVATO DALL'ERRORE. !!!
+// !!! DEVI USARE QUESTO UID NELLE TUE REGOLE DI SICUREZZA FIRESTORE !!!
+// !!! PER PERMETTERE ALL'ADMIN DI SCRIVERE NELLA COLLEZIONE 'banners' e 'newsletterSubscriptions' ecc. !!!
+const ADMIN_UID_FOR_RULES = "ymIToxqAwnTk9vtqE4RuRIIrzkC3";
 
 
 interface Banner {
@@ -487,13 +489,15 @@ function AdminNewsSiteView() {
       toast({ title: "Banner Aggiunto!", description: `Il banner "${bannerName.trim()}" è stato salvato.` });
       setBannerName("");
       setBannerContentHTML("");
-      fetchBanners();
+      fetchBanners(); // Ricarica la lista dei banner
     } catch (error: any) {
       console.error("Errore aggiunta banner:", error);
-      toast({ 
-        title: "Errore Aggiunta Banner", 
-        description: `(${error.code || 'Unknown Error'}) ${error.message}. L'UID rilevato è: '${clientUser?.uid || 'UID_NON_DISPONIBILE'}'. Assicurati che questo UID sia autorizzato nelle regole di sicurezza di Firestore per la collezione 'banners'.`,
-        variant: "destructive" 
+      const detectedUID = clientUser?.uid || 'UID_NON_DISPONIBILE';
+      toast({
+        title: "Errore Aggiunta Banner",
+        description: `(${error.code || 'Unknown Error'}) ${error.message}. L'UID rilevato è: '${detectedUID}'. Assicurati che questo UID sia autorizzato nelle regole di sicurezza di Firestore per la collezione 'banners'.`,
+        variant: "destructive",
+        duration: 9000,
       });
     } finally {
       setIsAddingBanner(false);
@@ -508,10 +512,10 @@ function AdminNewsSiteView() {
         description="Benvenuto, Admin! Ecco le ultime attività e gli strumenti di gestione."
       />
       {/* Main Admin Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-8">
 
         {/* Colonna Strumenti di Contenuto (più larga su schermi grandi) */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="xl:col-span-2 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="shadow-lg">
               <CardHeader>
@@ -802,7 +806,7 @@ function AdminNewsSiteView() {
         </div>
 
         {/* Colonna Personalizzazione & Banner */}
-        <div className="lg:col-span-1 space-y-6">
+        <div className="xl:col-span-1 space-y-6">
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -1048,7 +1052,7 @@ export default function HomePage() {
                   </span>
                 )}
                 <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                {!isAdmin && (
+                {!isAdmin && ( // Mostra dashboard solo se non è admin
                   <Button variant="outline" size="sm" asChild>
                     <Link href="/dashboard">Dashboard</Link>
                   </Button>
@@ -1096,4 +1100,3 @@ export default function HomePage() {
     </div>
   );
 }
-
