@@ -4,7 +4,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon, Users, MailCheck, PlusCircle, Newspaper, Megaphone, CheckSquare, CircleOff } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon, Users, MailCheck, PlusCircle, Newspaper, Megaphone, CheckSquare, CircleOff, UserCog } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context";
 import { usePosts } from "@/contexts/posts-context";
@@ -29,6 +29,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 
 const ADMIN_EMAIL = "coppolek@gmail.com";
+// IMPORTANTE: In un'app di produzione, questo UID dovrebbe essere gestito in modo più sicuro,
+// ad esempio tramite custom claims o configurazioni backend.
+// Per ora, inserisci qui l'UID del tuo account admin per testare le regole di Firestore.
+// Puoi trovare l'UID nella console Firebase > Authentication > Utenti.
+const ADMIN_UID_FOR_RULES = "INSERISCI_QUI_L_UID_DEL_TUO_ADMIN"; // !!! SOSTITUISCI QUESTO !!!
 
 interface NewsletterSubscriber {
   id: string;
@@ -137,6 +142,7 @@ function BlogFeedView() {
 }
 
 function AdminNewsSiteView() {
+  const { currentUser } = useAuth();
   const {
     siteTitle: currentGlobalTitle,
     setSiteTitleState,
@@ -250,8 +256,10 @@ function AdminNewsSiteView() {
 
   const fetchNewsletterSubscribers = async () => {
     setIsLoadingSubscribers(true);
-    const clientUserEmail = firebaseAuth.currentUser?.email;
-    console.log('[AdminPanel] Attempting to fetch subscribers. Client-side user email for rules check:', clientUserEmail);
+    const clientUser = firebaseAuth.currentUser;
+    console.log('[AdminPanel] Attempting to fetch subscribers. Client-side user email for rules check:', clientUser?.email);
+    console.log('[AdminPanel] Client-side user UID for rules check:', clientUser?.uid);
+
 
     try {
       const subscribersCollection = collection(db, "newsletterSubscriptions");
@@ -379,6 +387,7 @@ function AdminNewsSiteView() {
     setOriginalPostContent("");
     setOriginalPostImageUrl("");
     setOriginalPostImageHint("");
+    setPostCategory("Generale"); // Reset category
     setProcessedPostDataManual(null);
   };
 
@@ -439,9 +448,6 @@ function AdminNewsSiteView() {
 
     if ('originalTitleFromFeed' in article) { // Article from feed
       titleForEditor = article.originalTitleFromFeed || article.processedTitle;
-      // For feed items, we don't automatically get an image URL unless the feed parser provides it
-      // and we decide to pass it through syndicateAndProcessContent and then here.
-      // Let's assume for now it's not passed for feed items to keep it simple.
     } else if ('extractedImageUrl' in article && article.extractedImageUrl) { // Article from URL scraping
       imageUrlForEditor = article.extractedImageUrl;
       imageHintForEditor = article.processedTitle.split(' ').slice(0, 2).join(' ') || "immagine articolo";
@@ -590,14 +596,12 @@ function AdminNewsSiteView() {
         return;
       }
 
-      // This part interacts with Firebase Extensions "Trigger Email"
-      // It assumes the extension is configured to listen to the "mail" collection
       const emailPromises = subscriberEmails.map(email => {
         return addDoc(collection(db, "mail"), {
-          to: [email], // The extension expects an array of recipients
+          to: [email],
           message: {
             subject: generatedNewsletterSubject,
-            html: generatedNewsletterBody, // Or 'text' if your body is plain text
+            html: generatedNewsletterBody,
           },
         });
       });
@@ -623,6 +627,10 @@ function AdminNewsSiteView() {
       return;
     }
     setIsAddingBanner(true);
+    const clientUser = firebaseAuth.currentUser; // Get current user for UID
+    console.log('[AdminPanel] Attempting to add banner. Current user UID for rules check:', clientUser?.uid);
+
+
     try {
       await addDoc(collection(db, "banners"), {
         name: bannerName.trim(),
@@ -634,12 +642,10 @@ function AdminNewsSiteView() {
       toast({ title: "Banner Aggiunto!", description: `Il banner "${bannerName.trim()}" è stato salvato.` });
       setBannerName("");
       setBannerContentHTML("");
-      // setBannerPlacement('underTitle'); // Reset or keep last
-      // setBannerIsActive(true); // Reset or keep last
-      fetchBanners(); // Refresh banner list
-    } catch (error) {
+      fetchBanners();
+    } catch (error: any) {
       console.error("Errore aggiunta banner:", error);
-      toast({ title: "Errore Aggiunta Banner", description: (error as Error).message || "Impossibile salvare il banner.", variant: "destructive" });
+      toast({ title: "Errore Aggiunta Banner", description: error.message || "Impossibile salvare il banner.", variant: "destructive" });
     } finally {
       setIsAddingBanner(false);
     }
@@ -1311,7 +1317,7 @@ export default function HomePage() {
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            {/* <Icons.AppLogo className="h-6 w-6" /> */}
+            <UserCog className="h-6 w-6 text-primary" /> {/* Changed from Icons.AppLogo */}
             <span className="font-bold text-xl text-primary">{siteTitle}</span>
           </Link>
           <nav className="flex items-center space-x-2">
@@ -1329,11 +1335,10 @@ export default function HomePage() {
                     <Link href="/dashboard">Dashboard</Link>
                   </Button>
                 )}
-                <Button
+                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={async () => {
-                    // Dynamic import for signOut to keep initial bundle small
                     const { signOut: firebaseSignOut } = await import('firebase/auth');
                     const { auth } = await import('@/lib/firebase');
                     try {
@@ -1373,3 +1378,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    
