@@ -12,29 +12,42 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon, Users, MailCheck, PlusCircle, Newspaper } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon, Users, MailCheck, PlusCircle, Newspaper, Megaphone, CheckSquare, CircleOff } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
-import { useSiteCustomization } from "@/contexts/site-customization-context"; 
-import { usePosts } from "@/contexts/posts-context"; 
+import { useSiteCustomization } from "@/contexts/site-customization-context";
+import { usePosts } from "@/contexts/posts-context";
 import { processBlogPost, type ProcessBlogPostInput, type ProcessBlogPostOutput } from "@/ai/flows/process-blog-post";
 import { syndicateAndProcessContent, type SyndicateAndProcessContentInput, type SyndicateAndProcessContentOutput, type ProcessedArticleData as FeedProcessedArticleData } from "@/ai/flows/syndicate-and-process-content";
 import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type ScrapedAndProcessedArticleData } from "@/ai/flows/scrapeUrlAndProcessContent";
 import { generateNewsletterContent, type GenerateNewsletterInput, type GenerateNewsletterOutput } from "@/ai/flows/generate-newsletter-content";
 import { useToast } from "@/hooks/use-toast";
-import type { Post } from '@/types/blog'; 
+import type { Post } from '@/types/blog';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, orderBy, query, Timestamp, addDoc, serverTimestamp, where } from 'firebase/firestore';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
-const ADMIN_EMAIL = "coppolek@gmail.com"; 
+
+// !! IMPORTANTE !! Replicato da src/app/(app)/page.tsx per coerenza nell'identificazione dell'admin
+const ADMIN_EMAIL = "coppolek@gmail.com";
 
 interface NewsletterSubscriber {
   id: string;
   email: string;
-  subscribedAt: string; 
+  subscribedAt: string;
+}
+
+interface Banner {
+  id: string;
+  name: string;
+  contentHTML: string;
+  placement: 'underTitle' | 'afterContent' | 'popup';
+  isActive: boolean;
+  createdAt: Timestamp;
 }
 
 function BlogFeedView() {
-  const { posts } = usePosts(); 
+  const { posts } = usePosts();
 
   if (!posts || posts.length === 0) {
     return (
@@ -61,8 +74,8 @@ function BlogFeedView() {
                 <Image
                   src={post.imageUrl}
                   alt={post.title}
-                  width={800} 
-                  height={450} 
+                  width={800}
+                  height={450}
                   className="w-full h-auto object-cover transition-transform duration-300 ease-in-out hover:scale-105"
                   data-ai-hint={post.imageHint || "blog image"}
                 />
@@ -71,14 +84,14 @@ function BlogFeedView() {
             <div className="p-6 flex-grow flex flex-col">
               <div className="flex items-center text-xs text-muted-foreground mb-3">
                 {post.category && (
-                  <Badge variant="secondary" className="mr-2"> 
+                  <Badge variant="secondary" className="mr-2">
                     <Link href={`/category/${post.category.toLowerCase()}`} className="hover:underline">
                       {post.category}
                     </Link>
                   </Badge>
                 )}
                 <span>Pubblicato da </span>
-                <Link href={`/user/${post.author.toLowerCase().replace(' ','-')}`} className="font-medium hover:underline ml-1 mr-1">
+                <Link href={`/user/${post.author.toLowerCase().replace(' ', '-')}`} className="font-medium hover:underline ml-1 mr-1">
                   {post.author}
                 </Link>
                 <span>• {post.date}</span>
@@ -89,7 +102,7 @@ function BlogFeedView() {
                   {post.title}
                 </Link>
               </CardTitle>
-              
+
               <p className="text-base text-foreground/80 mb-6 line-clamp-4 flex-grow">{post.excerpt}</p>
 
               <div className="flex items-center justify-between text-sm mt-auto pt-4 border-t border-border/50">
@@ -125,14 +138,14 @@ function BlogFeedView() {
 }
 
 function AdminNewsSiteView() {
-  const { 
-    siteTitle: currentGlobalTitle, 
-    setSiteTitleState, 
-    bgHue: currentGlobalBgHue, 
-    setBgHueState, 
-    bgSaturation: currentGlobalBgSaturation, 
-    setBgSaturationState, 
-    bgLightness: currentGlobalBgLightness, 
+  const {
+    siteTitle: currentGlobalTitle,
+    setSiteTitleState,
+    bgHue: currentGlobalBgHue,
+    setBgHueState,
+    bgSaturation: currentGlobalBgSaturation,
+    setBgSaturationState,
+    bgLightness: currentGlobalBgLightness,
     setBgLightnessState,
     cardHue: currentGlobalCardHue,
     setCardHueState,
@@ -152,13 +165,13 @@ function AdminNewsSiteView() {
     setPrimaryFgSaturationState,
     primaryFgLightness: currentGlobalPrimaryFgLightness,
     setPrimaryFgLightnessState,
-    applyCustomization 
+    applyCustomization
   } = useSiteCustomization();
-  const { addPost } = usePosts(); 
+  const { addPost } = usePosts();
   const { toast } = useToast();
 
   const [localTitle, setLocalTitle] = useState(currentGlobalTitle);
-  
+
   const [localBgHue, setLocalBgHue] = useState(currentGlobalBgHue);
   const [localBgSaturation, setLocalBgSaturation] = useState(currentGlobalBgSaturation);
   const [localBgLightness, setLocalBgLightness] = useState(currentGlobalBgLightness);
@@ -182,19 +195,19 @@ function AdminNewsSiteView() {
   const [originalPostContent, setOriginalPostContent] = useState("");
   const [originalPostImageUrl, setOriginalPostImageUrl] = useState("");
   const [originalPostImageHint, setOriginalPostImageHint] = useState("");
-  const [postCategory, setPostCategory] = useState("Generale"); 
+  const [postCategory, setPostCategory] = useState("Generale");
   const [isProcessingPostManual, setIsProcessingPostManual] = useState(false);
   const [processedPostDataManual, setProcessedPostDataManual] = useState<ProcessBlogPostOutput | null>(null);
 
   // State for feed import
   const [feedUrl, setFeedUrl] = useState("");
-  const [defaultFeedCategory, setDefaultFeedCategory] = useState("Feed"); 
+  const [defaultFeedCategory, setDefaultFeedCategory] = useState("Feed");
   const [isProcessingFeed, setIsProcessingFeed] = useState(false);
   const [processedFeedArticles, setProcessedFeedArticles] = useState<FeedProcessedArticleData[]>([]);
-  const [feedProcessingErrors, setFeedProcessingErrors] = useState<{originalTitle?: string, error: string}[]>([]);
+  const [feedProcessingErrors, setFeedProcessingErrors] = useState<{ originalTitle?: string, error: string }[]>([]);
 
   // State for URL scraping
-  const [scrapeUrlInput, setScrapeUrlInput] = useState(""); 
+  const [scrapeUrlInput, setScrapeUrlInput] = useState("");
   const [scrapeCategory, setScrapeCategory] = useState("Scraping");
   const [isScrapingAndProcessing, setIsScrapingAndProcessing] = useState(false);
   const [scrapedAndProcessedData, setScrapedAndProcessedData] = useState<ScrapedAndProcessedArticleData | null>(null);
@@ -211,6 +224,15 @@ function AdminNewsSiteView() {
   const [generatedNewsletterBody, setGeneratedNewsletterBody] = useState<string | null>(null);
   const [isGeneratingNewsletter, setIsGeneratingNewsletter] = useState(false);
   const [isSendingNewsletter, setIsSendingNewsletter] = useState(false);
+
+  // State for Banners
+  const [bannerName, setBannerName] = useState("");
+  const [bannerContentHTML, setBannerContentHTML] = useState("");
+  const [bannerPlacement, setBannerPlacement] = useState<'underTitle' | 'afterContent' | 'popup'>('underTitle');
+  const [bannerIsActive, setBannerIsActive] = useState(true);
+  const [isAddingBanner, setIsAddingBanner] = useState(false);
+  const [bannersList, setBannersList] = useState<Banner[]>([]);
+  const [isLoadingBanners, setIsLoadingBanners] = useState(false);
 
 
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
@@ -239,7 +261,7 @@ function AdminNewsSiteView() {
         subscribers.push({
           id: doc.id,
           email: data.email,
-          subscribedAt: data.subscribedAt instanceof Timestamp ? data.subscribedAt.toDate().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : "Data non disponibile",
+          subscribedAt: data.subscribedAt instanceof Timestamp ? data.subscribedAt.toDate().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "Data non disponibile",
         });
       });
       setNewsletterSubscribers(subscribers);
@@ -251,8 +273,37 @@ function AdminNewsSiteView() {
     }
   };
 
+  const fetchBanners = async () => {
+    setIsLoadingBanners(true);
+    try {
+      const bannersCollection = collection(db, "banners");
+      const q = query(bannersCollection, orderBy("createdAt", "desc"));
+      const querySnapshot = await getDocs(q);
+      const fetchedBanners: Banner[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        fetchedBanners.push({
+          id: doc.id,
+          name: data.name,
+          contentHTML: data.contentHTML,
+          placement: data.placement,
+          isActive: data.isActive,
+          createdAt: data.createdAt,
+        } as Banner); // Type assertion
+      });
+      setBannersList(fetchedBanners);
+    } catch (error) {
+      console.error("Errore nel recupero dei banner:", error);
+      toast({ title: "Errore Banner", description: "Impossibile caricare i banner.", variant: "destructive" });
+    } finally {
+      setIsLoadingBanners(false);
+    }
+  };
+
+
   useEffect(() => {
-    fetchNewsletterSubscribers(); 
+    fetchNewsletterSubscribers();
+    fetchBanners();
   }, []);
 
 
@@ -271,10 +322,10 @@ function AdminNewsSiteView() {
     setPrimaryFgHueState(localPrimaryFgHue);
     setPrimaryFgSaturationState(localPrimaryFgSaturation);
     setPrimaryFgLightnessState(localPrimaryFgLightness);
-    
-    applyCustomization(); 
+
+    applyCustomization();
     toast({ title: "Personalizzazioni Salvate", description: "Le modifiche sono state applicate." });
-    setTimeout(() => setIsSavingCustomizations(false), 500); 
+    setTimeout(() => setIsSavingCustomizations(false), 500);
   };
 
   const handleProcessPostManually = async () => {
@@ -307,27 +358,26 @@ function AdminNewsSiteView() {
       return;
     }
     if (!postCategory) {
-        toast({ title: "Categoria Mancante", description: "Assicurati che una categoria sia specificata per il post.", variant: "destructive" });
-        return;
+      toast({ title: "Categoria Mancante", description: "Assicurati che una categoria sia specificata per il post.", variant: "destructive" });
+      return;
     }
 
     addPost({
       title: processedPostDataManual.processedTitle,
       content: processedPostDataManual.processedContent,
-      excerpt: processedPostDataManual.metaDescription, 
-      category: postCategory, 
-      imageUrl: originalPostImageUrl || undefined, 
-      imageHint: originalPostImageHint || undefined, 
+      excerpt: processedPostDataManual.metaDescription,
+      category: postCategory,
+      imageUrl: originalPostImageUrl || undefined,
+      imageHint: originalPostImageHint || undefined,
     });
 
     toast({ title: "Post Pubblicato!", description: `"${processedPostDataManual.processedTitle}" è stato aggiunto al blog.` });
-    
+
     setOriginalPostTitle("");
     setOriginalPostContent("");
     setOriginalPostImageUrl("");
     setOriginalPostImageHint("");
     setProcessedPostDataManual(null);
-    // Potrebbe essere utile svuotare anche postCategory se si vuole un form completamente pulito
   };
 
 
@@ -347,57 +397,57 @@ function AdminNewsSiteView() {
     let effectiveFeedUrl = feedUrl.trim();
     if (effectiveFeedUrl && !effectiveFeedUrl.startsWith('http://') && !effectiveFeedUrl.startsWith('https://')) {
       effectiveFeedUrl = `https://${effectiveFeedUrl}`;
-      setFeedUrl(effectiveFeedUrl); 
+      setFeedUrl(effectiveFeedUrl);
     }
 
     try {
       const input: SyndicateAndProcessContentInput = { feedUrl: effectiveFeedUrl, defaultCategory: defaultFeedCategory };
       const result: SyndicateAndProcessContentOutput = await syndicateAndProcessContent(input);
-      
+
       setProcessedFeedArticles(result.processedArticles);
       if (result.errors && result.errors.length > 0) {
         setFeedProcessingErrors(result.errors);
-        toast({ 
-          title: "Feed Elaborato con Errori/Note", 
-          description: `Completato, ma ${result.errors.length} messaggi presenti. Controlla i dettagli.`, 
-          variant: "default" 
+        toast({
+          title: "Feed Elaborato con Errori/Note",
+          description: `Completato, ma ${result.errors.length} messaggi presenti. Controlla i dettagli.`,
+          variant: "default"
         });
       } else if (result.processedArticles.length === 0) {
         toast({ title: "Nessun Articolo Elaborato", description: "Il feed potrebbe essere vuoto o gli articoli non idonei.", variant: "default" });
       }
-       else {
+      else {
         toast({ title: "Feed Elaborato!", description: `Processati ${result.processedArticles.length} articoli.` });
       }
     } catch (error) {
       console.error("Errore durante l'importazione e l'elaborazione del feed:", error);
       toast({ title: "Errore Elaborazione Feed", description: (error as Error).message || "Si è verificato un errore critico.", variant: "destructive" });
-      setFeedProcessingErrors([{error: (error as Error).message || "Errore critico sconosciuto."}]);
+      setFeedProcessingErrors([{ error: (error as Error).message || "Errore critico sconosciuto." }]);
     } finally {
       setIsProcessingFeed(false);
     }
   };
 
   const handleReviewAndEditProcessedArticle = (
-    article: FeedProcessedArticleData | ScrapedAndProcessedArticleData, 
+    article: FeedProcessedArticleData | ScrapedAndProcessedArticleData,
     categoryToUse: string
   ) => {
-    let titleForEditor = article.processedTitle; 
+    let titleForEditor = article.processedTitle;
     let imageUrlForEditor = "";
     let imageHintForEditor = "";
-    
-    if ('originalTitleFromFeed' in article) { 
-        titleForEditor = article.originalTitleFromFeed || article.processedTitle;
-    } else if ('extractedImageUrl' in article && article.extractedImageUrl) { 
-        imageUrlForEditor = article.extractedImageUrl;
-        imageHintForEditor = article.processedTitle.split(' ').slice(0,2).join(' ') || "immagine articolo";
+
+    if ('originalTitleFromFeed' in article) {
+      titleForEditor = article.originalTitleFromFeed || article.processedTitle;
+    } else if ('extractedImageUrl' in article && article.extractedImageUrl) {
+      imageUrlForEditor = article.extractedImageUrl;
+      imageHintForEditor = article.processedTitle.split(' ').slice(0, 2).join(' ') || "immagine articolo";
     }
-    
-    setOriginalPostTitle(titleForEditor); 
+
+    setOriginalPostTitle(titleForEditor);
     setOriginalPostContent(article.processedContent);
     setOriginalPostImageUrl(imageUrlForEditor);
-    setOriginalPostImageHint(imageHintForEditor); 
-    setPostCategory(categoryToUse); 
-    
+    setOriginalPostImageHint(imageHintForEditor);
+    setPostCategory(categoryToUse);
+
     setProcessedPostDataManual({
       processedTitle: article.processedTitle,
       processedContent: article.processedContent,
@@ -405,7 +455,7 @@ function AdminNewsSiteView() {
       seoKeywords: article.seoKeywords,
     });
 
-    toast({ title: "Articolo Caricato per Revisione", description: "I dati elaborati sono pronti nell'editor manuale."});
+    toast({ title: "Articolo Caricato per Revisione", description: "I dati elaborati sono pronti nell'editor manuale." });
     document.getElementById('ai-manual-processing-card')?.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -423,31 +473,31 @@ function AdminNewsSiteView() {
 
     let effectiveScrapeUrl = scrapeUrlInput.trim();
     if (effectiveScrapeUrl && !effectiveScrapeUrl.startsWith('http://') && !effectiveScrapeUrl.startsWith('https://')) {
-        effectiveScrapeUrl = `https://${effectiveScrapeUrl}`;
-        setScrapeUrlInput(effectiveScrapeUrl);
+      effectiveScrapeUrl = `https://${effectiveScrapeUrl}`;
+      setScrapeUrlInput(effectiveScrapeUrl);
     }
 
     try {
       const input: ScrapeUrlAndProcessContentInput = { url: effectiveScrapeUrl, category: scrapeCategory };
       const result = await scrapeUrlAndProcessContent(input);
-      
-      if (result.error && (!result.processedContent || result.processedContent.length < 50)) { 
+
+      if (result.error && (!result.processedContent || result.processedContent.length < 50)) {
         toast({ title: "Errore Estrazione/Elaborazione URL", description: result.error, variant: "destructive" });
         setScrapedAndProcessedData({
-            processedTitle: result.processedTitle || "Titolo non Estratto",
-            processedContent: result.processedContent || "Contenuto non Estratto",
-            metaDescription: result.metaDescription || "",
-            seoKeywords: result.seoKeywords || [],
-            originalUrlScraped: result.originalUrlScraped,
-            extractedImageUrl: result.extractedImageUrl,
-            error: result.error
+          processedTitle: result.processedTitle || "Titolo non Estratto",
+          processedContent: result.processedContent || "Contenuto non Estratto",
+          metaDescription: result.metaDescription || "",
+          seoKeywords: result.seoKeywords || [],
+          originalUrlScraped: result.originalUrlScraped,
+          extractedImageUrl: result.extractedImageUrl,
+          error: result.error
         });
       } else {
-        setScrapedAndProcessedData(result); 
+        setScrapedAndProcessedData(result);
         if (result.error) {
-             toast({ title: "Elaborazione URL con Avviso", description: `Contenuto parzialmente estratto o elaborato con errori. Dettagli: ${result.error}`, variant: "default" });
+          toast({ title: "Elaborazione URL con Avviso", description: `Contenuto parzialmente estratto o elaborato con errori. Dettagli: ${result.error}`, variant: "default" });
         } else {
-            toast({ title: "Contenuto Estratto ed Elaborato!", description: "Il contenuto dell'URL è stato processato con successo." });
+          toast({ title: "Contenuto Estratto ed Elaborato!", description: "Il contenuto dell'URL è stato processato con successo." });
         }
       }
     } catch (error) {
@@ -460,12 +510,12 @@ function AdminNewsSiteView() {
 
   const handleAddSubscriber = async () => {
     if (!newSubscriberEmail.trim()) {
-      toast({ title: "Email Mancante", description: "Inserisci un indirizzo email da aggiungere.", variant: "destructive"});
+      toast({ title: "Email Mancante", description: "Inserisci un indirizzo email da aggiungere.", variant: "destructive" });
       return;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newSubscriberEmail.trim())) {
-      toast({ title: "Email Non Valida", description: "Inserisci un indirizzo email valido.", variant: "destructive"});
+      toast({ title: "Email Non Valida", description: "Inserisci un indirizzo email valido.", variant: "destructive" });
       return;
     }
 
@@ -475,12 +525,12 @@ function AdminNewsSiteView() {
         email: newSubscriberEmail.trim(),
         subscribedAt: serverTimestamp(),
       });
-      toast({ title: "Iscritto Aggiunto!", description: `${newSubscriberEmail.trim()} è stato aggiunto alla newsletter.`});
-      setNewSubscriberEmail(""); 
-      fetchNewsletterSubscribers(); 
+      toast({ title: "Iscritto Aggiunto!", description: `${newSubscriberEmail.trim()} è stato aggiunto alla newsletter.` });
+      setNewSubscriberEmail("");
+      fetchNewsletterSubscribers();
     } catch (error) {
       console.error("Errore aggiunta iscritto:", error);
-      toast({ title: "Errore Aggiunta", description: "Impossibile aggiungere l'iscritto.", variant: "destructive"});
+      toast({ title: "Errore Aggiunta", description: "Impossibile aggiungere l'iscritto.", variant: "destructive" });
     } finally {
       setIsAddingSubscriber(false);
     }
@@ -497,7 +547,7 @@ function AdminNewsSiteView() {
     try {
       const input: GenerateNewsletterInput = {
         adminPrompt: newsletterAdminPrompt,
-        siteTitle: currentGlobalTitle, 
+        siteTitle: currentGlobalTitle,
       };
       const result: GenerateNewsletterOutput = await generateNewsletterContent(input);
       setGeneratedNewsletterSubject(result.subject);
@@ -534,15 +584,12 @@ function AdminNewsSiteView() {
         return;
       }
 
-      // Prepare email documents for Firestore "mail" collection
       const emailPromises = subscriberEmails.map(email => {
         return addDoc(collection(db, "mail"), {
-          to: [email], // "to" field should be an array
+          to: [email],
           message: {
             subject: generatedNewsletterSubject,
-            // Pass the body as html. If it's markdown, the Trigger Email extension
-            // or your ESP might render it, or you might need to convert it to HTML first.
-            html: generatedNewsletterBody, 
+            html: generatedNewsletterBody,
           },
         });
       });
@@ -562,6 +609,35 @@ function AdminNewsSiteView() {
     }
   };
 
+  const handleAddBanner = async () => {
+    if (!bannerName.trim() || !bannerContentHTML.trim()) {
+      toast({ title: "Campi Banner Mancanti", description: "Nome e Contenuto HTML sono richiesti.", variant: "destructive" });
+      return;
+    }
+    setIsAddingBanner(true);
+    try {
+      await addDoc(collection(db, "banners"), {
+        name: bannerName.trim(),
+        contentHTML: bannerContentHTML,
+        placement: bannerPlacement,
+        isActive: bannerIsActive,
+        createdAt: serverTimestamp(),
+      });
+      toast({ title: "Banner Aggiunto!", description: `Il banner "${bannerName.trim()}" è stato salvato.` });
+      setBannerName("");
+      setBannerContentHTML("");
+      // setBannerPlacement('underTitle'); // Reset or keep last
+      // setBannerIsActive(true); // Reset or keep last
+      fetchBanners(); // Refresh banner list
+    } catch (error) {
+      console.error("Errore aggiunta banner:", error);
+      toast({ title: "Errore Aggiunta Banner", description: (error as Error).message || "Impossibile salvare il banner.", variant: "destructive" });
+    } finally {
+      setIsAddingBanner(false);
+    }
+  };
+
+
   return (
     <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
       <PageHeader
@@ -570,7 +646,7 @@ function AdminNewsSiteView() {
       />
       {/* Main Admin Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-8">
-        
+
         {/* Colonna Strumenti di Contenuto */}
         <div className="space-y-6 md:col-span-1 xl:col-span-1">
           <Card className="shadow-lg">
@@ -583,10 +659,10 @@ function AdminNewsSiteView() {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="feedUrlInput" className="text-muted-foreground">URL Feed RSS/Atom</Label>
-                <Input 
-                  id="feedUrlInput" 
-                  type="url" 
-                  placeholder="esempio.com/feed.xml" 
+                <Input
+                  id="feedUrlInput"
+                  type="url"
+                  placeholder="esempio.com/feed.xml"
                   value={feedUrl}
                   onChange={(e) => setFeedUrl(e.target.value)}
                   disabled={isProcessingFeed}
@@ -595,10 +671,10 @@ function AdminNewsSiteView() {
               </div>
               <div>
                 <Label htmlFor="defaultFeedCategoryInput" className="text-muted-foreground">Categoria Predefinita per il Feed</Label>
-                <Input 
-                  id="defaultFeedCategoryInput" 
-                  type="text" 
-                  placeholder="Es: Novità Tecnologiche" 
+                <Input
+                  id="defaultFeedCategoryInput"
+                  type="text"
+                  placeholder="Es: Novità Tecnologiche"
                   value={defaultFeedCategory}
                   onChange={(e) => setDefaultFeedCategory(e.target.value)}
                   disabled={isProcessingFeed}
@@ -606,10 +682,10 @@ function AdminNewsSiteView() {
                 />
               </div>
               <Button onClick={handleSyndicateAndProcess} disabled={isProcessingFeed || !feedUrl || !defaultFeedCategory} className="w-full">
-                {isProcessingFeed ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2"/>}
+                {isProcessingFeed ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
                 Importa ed Elabora Feed
-              </Button> 
-              
+              </Button>
+
               {feedProcessingErrors.length > 0 && (
                 <div className="mt-4 space-y-2">
                   <h4 className="font-semibold text-sm text-destructive mb-1">Errori/Note Elaborazione Feed:</h4>
@@ -629,30 +705,30 @@ function AdminNewsSiteView() {
                     <Card key={article.originalLink || index} className="p-2 text-sm bg-muted/50">
                       <div className="flex justify-between items-start">
                         <div className="flex-grow overflow-hidden">
-                            <p className="font-medium truncate text-xs text-muted-foreground" title={article.originalTitleFromFeed}>
-                                Orig: {article.originalTitleFromFeed || "N/D"}
-                            </p>
-                            <p className="font-semibold truncate" title={article.processedTitle}>
-                                Elaborato: {article.processedTitle || "Nessun Titolo"}
-                            </p>
+                          <p className="font-medium truncate text-xs text-muted-foreground" title={article.originalTitleFromFeed}>
+                            Orig: {article.originalTitleFromFeed || "N/D"}
+                          </p>
+                          <p className="font-semibold truncate" title={article.processedTitle}>
+                            Elaborato: {article.processedTitle || "Nessun Titolo"}
+                          </p>
                         </div>
                         <div className="flex gap-1 shrink-0 ml-2">
-                            {article.originalLink && (
-                                <Button variant="outline" size="icon" className="h-7 w-7" asChild>
-                                    <a href={article.originalLink} target="_blank" rel="noopener noreferrer" title="Apri originale">
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                    </a>
-                                </Button>
-                            )}
-                            <Button 
-                                variant="outline" 
-                                size="icon" 
-                                className="h-7 w-7"
-                                onClick={() => handleReviewAndEditProcessedArticle(article, defaultFeedCategory)}
-                                title="Rivedi ed Edita Articolo Elaborato"
-                            >
-                                <FileEdit className="h-3.5 w-3.5" />
+                          {article.originalLink && (
+                            <Button variant="outline" size="icon" className="h-7 w-7" asChild>
+                              <a href={article.originalLink} target="_blank" rel="noopener noreferrer" title="Apri originale">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
                             </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleReviewAndEditProcessedArticle(article, defaultFeedCategory)}
+                            title="Rivedi ed Edita Articolo Elaborato"
+                          >
+                            <FileEdit className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
                     </Card>
@@ -672,10 +748,10 @@ function AdminNewsSiteView() {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="scrapeUrlInput" className="text-muted-foreground">URL da Analizzare</Label>
-                <Input 
-                  id="scrapeUrlInput" 
-                  type="url" 
-                  placeholder="https://esempio.com/articolo" 
+                <Input
+                  id="scrapeUrlInput"
+                  type="url"
+                  placeholder="https://esempio.com/articolo"
                   value={scrapeUrlInput}
                   onChange={(e) => setScrapeUrlInput(e.target.value)}
                   disabled={isScrapingAndProcessing}
@@ -684,10 +760,10 @@ function AdminNewsSiteView() {
               </div>
               <div>
                 <Label htmlFor="scrapeCategoryInput" className="text-muted-foreground">Categoria Articolo</Label>
-                <Input 
-                  id="scrapeCategoryInput" 
-                  type="text" 
-                  placeholder="Es: Recensioni Auto" 
+                <Input
+                  id="scrapeCategoryInput"
+                  type="text"
+                  placeholder="Es: Recensioni Auto"
                   value={scrapeCategory}
                   onChange={(e) => setScrapeCategory(e.target.value)}
                   disabled={isScrapingAndProcessing}
@@ -695,47 +771,47 @@ function AdminNewsSiteView() {
                 />
               </div>
               <Button onClick={handleScrapeAndProcess} disabled={isScrapingAndProcessing || !scrapeUrlInput || !scrapeCategory} className="w-full">
-                {isScrapingAndProcessing ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2"/>}
+                {isScrapingAndProcessing ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
                 Estrai ed Elabora con AI
-              </Button> 
+              </Button>
               {scrapedAndProcessedData && (
                 <div className="mt-6 space-y-4 border-t pt-4">
                   {scrapedAndProcessedData.error && <p className="text-sm text-destructive p-2 border border-destructive bg-destructive/10 rounded-md">{scrapedAndProcessedData.error}</p>}
-                  
+
                   {scrapedAndProcessedData.extractedImageUrl && (!scrapedAndProcessedData.error || (scrapedAndProcessedData.error && scrapedAndProcessedData.processedContent)) && (
                     <div>
                       <Label className="font-semibold">Immagine Estratta:</Label>
                       <div className="mt-1 p-2 border rounded-md bg-muted flex justify-center">
-                        <Image 
-                          src={scrapedAndProcessedData.extractedImageUrl} 
-                          alt="Immagine estratta" 
-                          width={200} 
-                          height={120} 
+                        <Image
+                          src={scrapedAndProcessedData.extractedImageUrl}
+                          alt="Immagine estratta"
+                          width={200}
+                          height={120}
                           className="object-contain rounded-md max-h-[120px]"
                         />
                       </div>
-                       <p className="text-xs text-muted-foreground mt-1 truncate text-center" title={scrapedAndProcessedData.extractedImageUrl}>
-                          {scrapedAndProcessedData.extractedImageUrl}
-                        </p>
+                      <p className="text-xs text-muted-foreground mt-1 truncate text-center" title={scrapedAndProcessedData.extractedImageUrl}>
+                        {scrapedAndProcessedData.extractedImageUrl}
+                      </p>
                     </div>
                   )}
 
                   <div className="flex justify-between items-center">
                     <Label className="font-semibold">Titolo Elaborato:</Label>
                     {scrapedAndProcessedData.processedTitle && (!scrapedAndProcessedData.error || scrapedAndProcessedData.processedContent) && (
-                       <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleReviewAndEditProcessedArticle(scrapedAndProcessedData, scrapeCategory)}
-                          title="Rivedi ed Edita Articolo Elaborato"
-                          disabled={!scrapedAndProcessedData.processedContent}
-                        >
-                          <FileEdit className="h-3.5 w-3.5 mr-1" /> Rivedi
-                        </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleReviewAndEditProcessedArticle(scrapedAndProcessedData, scrapeCategory)}
+                        title="Rivedi ed Edita Articolo Elaborato"
+                        disabled={!scrapedAndProcessedData.processedContent}
+                      >
+                        <FileEdit className="h-3.5 w-3.5 mr-1" /> Rivedi
+                      </Button>
                     )}
                   </div>
                   <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.processedTitle || "N/D"}</p>
-                  
+
                   <div>
                     <Label className="font-semibold">Meta Description:</Label>
                     <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.metaDescription || "N/D"}</p>
@@ -746,23 +822,23 @@ function AdminNewsSiteView() {
                   </div>
                   <div>
                     <Label className="font-semibold">Contenuto Elaborato (dall'AI):</Label>
-                    <Textarea 
-                      readOnly 
-                      value={scrapedAndProcessedData.processedContent || "N/D"} 
-                      rows={8} 
+                    <Textarea
+                      readOnly
+                      value={scrapedAndProcessedData.processedContent || "N/D"}
+                      rows={8}
                       className="mt-1 bg-muted text-sm"
                     />
                   </div>
-                   <p className="text-xs text-muted-foreground">URL Originale: {scrapedAndProcessedData.originalUrlScraped}</p>
+                  <p className="text-xs text-muted-foreground">URL Originale: {scrapedAndProcessedData.originalUrlScraped}</p>
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
-        
+
         {/* Colonna Editor Post */}
         <div className="space-y-6 md:col-span-1 xl:col-span-1">
-           <Card className="shadow-lg" id="ai-manual-processing-card">
+          <Card className="shadow-lg" id="ai-manual-processing-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Sparkles className="h-6 w-6 text-primary" />
@@ -775,53 +851,53 @@ function AdminNewsSiteView() {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="originalPostTitle">Titolo Articolo (Originale o per Revisione)</Label>
-                <Input 
-                  id="originalPostTitle" 
-                  value={originalPostTitle} 
-                  onChange={(e) => setOriginalPostTitle(e.target.value)} 
-                  placeholder="Es: Nuova auto elettrica in arrivo" 
+                <Input
+                  id="originalPostTitle"
+                  value={originalPostTitle}
+                  onChange={(e) => setOriginalPostTitle(e.target.value)}
+                  placeholder="Es: Nuova auto elettrica in arrivo"
                   disabled={isProcessingPostManual}
                 />
               </div>
               <div>
                 <Label htmlFor="postCategory">Categoria Articolo</Label>
-                <Input 
-                  id="postCategory" 
-                  value={postCategory} 
-                  onChange={(e) => setPostCategory(e.target.value)} 
-                  placeholder="Es: Novità Auto, Guide, Recensioni" 
+                <Input
+                  id="postCategory"
+                  value={postCategory}
+                  onChange={(e) => setPostCategory(e.target.value)}
+                  placeholder="Es: Novità Auto, Guide, Recensioni"
                   disabled={isProcessingPostManual}
                 />
               </div>
               <div>
                 <Label htmlFor="originalPostImageUrl">URL Immagine (Opzionale)</Label>
-                <Input 
-                  id="originalPostImageUrl" 
+                <Input
+                  id="originalPostImageUrl"
                   type="url"
-                  value={originalPostImageUrl} 
-                  onChange={(e) => setOriginalPostImageUrl(e.target.value)} 
-                  placeholder="https://esempio.com/immagine.jpg" 
+                  value={originalPostImageUrl}
+                  onChange={(e) => setOriginalPostImageUrl(e.target.value)}
+                  placeholder="https://esempio.com/immagine.jpg"
                   disabled={isProcessingPostManual}
                 />
               </div>
-               <div>
+              <div>
                 <Label htmlFor="originalPostImageHint">Suggerimento Immagine (per AI, opzionale)</Label>
-                <Input 
-                  id="originalPostImageHint" 
-                  value={originalPostImageHint} 
-                  onChange={(e) => setOriginalPostImageHint(e.target.value)} 
-                  placeholder="Es: auto sportiva rossa" 
+                <Input
+                  id="originalPostImageHint"
+                  value={originalPostImageHint}
+                  onChange={(e) => setOriginalPostImageHint(e.target.value)}
+                  placeholder="Es: auto sportiva rossa"
                   disabled={isProcessingPostManual}
                 />
               </div>
               <div>
                 <Label htmlFor="originalPostContent">Contenuto Articolo (min 50 caratteri)</Label>
-                <Textarea 
-                  id="originalPostContent" 
-                  value={originalPostContent} 
-                  onChange={(e) => setOriginalPostContent(e.target.value)} 
-                  rows={6} 
-                  placeholder="Incolla qui il contenuto originale o elaborato del post..." 
+                <Textarea
+                  id="originalPostContent"
+                  value={originalPostContent}
+                  onChange={(e) => setOriginalPostContent(e.target.value)}
+                  rows={6}
+                  placeholder="Incolla qui il contenuto originale o elaborato del post..."
                   disabled={isProcessingPostManual}
                 />
               </div>
@@ -845,10 +921,10 @@ function AdminNewsSiteView() {
                   </div>
                   <div>
                     <Label className="font-semibold">Contenuto Elaborato (dall'AI):</Label>
-                    <Textarea 
-                      readOnly 
-                      value={processedPostDataManual.processedContent} 
-                      rows={10} 
+                    <Textarea
+                      readOnly
+                      value={processedPostDataManual.processedContent}
+                      rows={10}
                       className="mt-1 bg-muted text-sm"
                     />
                   </div>
@@ -862,8 +938,8 @@ function AdminNewsSiteView() {
           </Card>
         </div>
 
-        {/* Colonna Personalizzazione & Newsletter */}
-        <div className="space-y-6 md:col-span-2 xl:col-span-1"> {/* md:col-span-2 per coprire tutta la larghezza su tablet */}
+        {/* Colonna Personalizzazione, Newsletter & Banner */}
+        <div className="space-y-6 md:col-span-2 xl:col-span-1">
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -874,16 +950,16 @@ function AdminNewsSiteView() {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="siteTitleInput">Titolo del Sito</Label>
-                <Input 
-                  id="siteTitleInput" 
-                  type="text" 
+                <Input
+                  id="siteTitleInput"
+                  type="text"
                   value={localTitle}
                   onChange={(e) => setLocalTitle(e.target.value)}
-                  placeholder="Il Mio Fantastico Blog" 
-                  className="mt-1" 
+                  placeholder="Il Mio Fantastico Blog"
+                  className="mt-1"
                 />
               </div>
-              
+
               <div className="space-y-1">
                 <Label>Colore Sfondo Principale (HSL)</Label>
                 <div className="grid grid-cols-3 gap-2">
@@ -975,7 +1051,7 @@ function AdminNewsSiteView() {
                 <div className="flex items-end gap-2">
                   <div className="flex-grow">
                     <Label htmlFor="newSubscriberEmail" className="text-xs text-muted-foreground">Nuova Email</Label>
-                    <Input 
+                    <Input
                       id="newSubscriberEmail"
                       type="email"
                       placeholder="email@esempio.com"
@@ -985,20 +1061,20 @@ function AdminNewsSiteView() {
                       className="h-9"
                     />
                   </div>
-                  <Button 
-                    onClick={handleAddSubscriber} 
+                  <Button
+                    onClick={handleAddSubscriber}
                     disabled={isAddingSubscriber || !newSubscriberEmail.trim()}
                     size="sm"
                     className="shrink-0"
                   >
-                    {isAddingSubscriber ? <Loader2 className="animate-spin h-4 w-4" /> : <PlusCircle className="h-4 w-4"/>}
+                    {isAddingSubscriber ? <Loader2 className="animate-spin h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
                   </Button>
                 </div>
-                 <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="w-full"
-                  disabled 
+                  disabled
                 >
                   Importa Iscritti (Prossimamente)
                 </Button>
@@ -1020,7 +1096,7 @@ function AdminNewsSiteView() {
               ) : (
                 <p className="text-sm text-muted-foreground mt-4 text-center">Nessun iscritto alla newsletter al momento.</p>
               )}
-               <Button onClick={fetchNewsletterSubscribers} variant="outline" size="sm" className="mt-4 w-full">
+              <Button onClick={fetchNewsletterSubscribers} variant="outline" size="sm" className="mt-4 w-full">
                 {isLoadingSubscribers ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
                 Aggiorna Lista Iscritti
               </Button>
@@ -1037,29 +1113,29 @@ function AdminNewsSiteView() {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="newsletterAdminPrompt">Contenuto Newsletter / Prompt AI</Label>
-                <Textarea 
-                    id="newsletterAdminPrompt" 
-                    placeholder="Scrivi il contenuto o un prompt per l'AI per la newsletter..." 
-                    rows={5} 
-                    className="mt-1"
-                    value={newsletterAdminPrompt}
-                    onChange={(e) => setNewsletterAdminPrompt(e.target.value)}
-                    disabled={isGeneratingNewsletter || isSendingNewsletter}
+                <Textarea
+                  id="newsletterAdminPrompt"
+                  placeholder="Scrivi il contenuto o un prompt per l'AI per la newsletter..."
+                  rows={5}
+                  className="mt-1"
+                  value={newsletterAdminPrompt}
+                  onChange={(e) => setNewsletterAdminPrompt(e.target.value)}
+                  disabled={isGeneratingNewsletter || isSendingNewsletter}
                 />
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
-                <Button 
-                    onClick={handleGenerateNewsletter} 
-                    disabled={isGeneratingNewsletter || isSendingNewsletter || !newsletterAdminPrompt.trim()} 
-                    className="flex-1"
+                <Button
+                  onClick={handleGenerateNewsletter}
+                  disabled={isGeneratingNewsletter || isSendingNewsletter || !newsletterAdminPrompt.trim()}
+                  className="flex-1"
                 >
                   {isGeneratingNewsletter ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
                   Genera con AI
                 </Button>
-                <Button 
+                <Button
                   onClick={handleSendNewsletter}
-                  disabled={isSendingNewsletter || !generatedNewsletterSubject || !generatedNewsletterBody} 
-                  variant="secondary" 
+                  disabled={isSendingNewsletter || !generatedNewsletterSubject || !generatedNewsletterBody}
+                  variant="secondary"
                   className="flex-1"
                   title="Assicurati di aver configurato l'estensione Firebase 'Trigger Email'"
                 >
@@ -1071,18 +1147,18 @@ function AdminNewsSiteView() {
                 <div className="mt-6 space-y-4 border-t pt-4">
                   <div>
                     <Label className="font-semibold">Oggetto Newsletter Generato:</Label>
-                    <Input 
-                        readOnly 
-                        value={generatedNewsletterSubject} 
-                        className="mt-1 bg-muted" 
+                    <Input
+                      readOnly
+                      value={generatedNewsletterSubject}
+                      className="mt-1 bg-muted"
                     />
                   </div>
                   <div>
                     <Label className="font-semibold">Corpo Newsletter Generato:</Label>
-                    <Textarea 
-                      readOnly 
-                      value={generatedNewsletterBody} 
-                      rows={10} 
+                    <Textarea
+                      readOnly
+                      value={generatedNewsletterBody}
+                      rows={10}
                       className="mt-1 bg-muted text-sm"
                     />
                   </div>
@@ -1090,6 +1166,111 @@ function AdminNewsSiteView() {
               )}
             </CardContent>
           </Card>
+
+          {/* Banner Management Card */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Megaphone className="h-6 w-6 text-primary" />
+                Gestione Banner
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Form to Add Banner */}
+              <div className="space-y-4 p-4 border rounded-md">
+                <h3 className="text-lg font-medium">Aggiungi Nuovo Banner</h3>
+                <div>
+                  <Label htmlFor="bannerName">Nome Banner (Identificativo)</Label>
+                  <Input
+                    id="bannerName"
+                    value={bannerName}
+                    onChange={(e) => setBannerName(e.target.value)}
+                    placeholder="Es. Banner Homepage Sotto Titolo"
+                    disabled={isAddingBanner}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="bannerContentHTML">Contenuto Banner (HTML)</Label>
+                  <Textarea
+                    id="bannerContentHTML"
+                    value={bannerContentHTML}
+                    onChange={(e) => setBannerContentHTML(e.target.value)}
+                    placeholder="<p>Testo banner</p> o <img src='...' />"
+                    rows={4}
+                    disabled={isAddingBanner}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="bannerPlacement">Posizionamento</Label>
+                  <Select
+                    value={bannerPlacement}
+                    onValueChange={(value) => setBannerPlacement(value as 'underTitle' | 'afterContent' | 'popup')}
+                    disabled={isAddingBanner}
+                  >
+                    <SelectTrigger id="bannerPlacement">
+                      <SelectValue placeholder="Seleziona posizionamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="underTitle">Sotto Titolo Articolo</SelectItem>
+                      <SelectItem value="afterContent">Dopo Contenuto Articolo</SelectItem>
+                      <SelectItem value="popup">Popup Articolo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="bannerIsActive"
+                    checked={bannerIsActive}
+                    onCheckedChange={(checked) => setBannerIsActive(!!checked)}
+                    disabled={isAddingBanner}
+                  />
+                  <Label htmlFor="bannerIsActive" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Attivo
+                  </Label>
+                </div>
+                <Button onClick={handleAddBanner} disabled={isAddingBanner || !bannerName || !bannerContentHTML}>
+                  {isAddingBanner ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                  Aggiungi Banner
+                </Button>
+              </div>
+
+              {/* List of Banners */}
+              <div>
+                <h3 className="text-lg font-medium mb-2">Banner Esistenti</h3>
+                {isLoadingBanners ? (
+                  <div className="flex items-center justify-center p-4">
+                    <Loader2 className="animate-spin h-6 w-6 text-primary" />
+                    <span className="ml-2">Caricamento banner...</span>
+                  </div>
+                ) : bannersList.length > 0 ? (
+                  <div className="space-y-2 max-h-72 overflow-y-auto border p-2 rounded-md">
+                    {bannersList.map(b => (
+                      <Card key={b.id} className="p-3 text-sm bg-muted/50">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <p className="font-semibold">{b.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                Pos: {b.placement === 'underTitle' ? 'Sotto Titolo' : b.placement === 'afterContent' ? 'Dopo Contenuto' : 'Popup'}
+                                </p>
+                            </div>
+                            {b.isActive ? <CheckSquare className="h-5 w-5 text-green-600" /> : <CircleOff className="h-5 w-5 text-red-600" />}
+                        </div>
+                         {/* Future: Add Edit/Delete buttons here */}
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center">Nessun banner creato.</p>
+                )}
+                <Button onClick={fetchBanners} variant="outline" size="sm" className="mt-3 w-full">
+                    {isLoadingBanners ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+                    Aggiorna Lista Banner
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+
         </div>
       </div>
     </div>
@@ -1099,7 +1280,7 @@ function AdminNewsSiteView() {
 
 export default function HomePage() {
   const { currentUser, loading: authLoading } = useAuth();
-  const { siteTitle } = useSiteCustomization(); 
+  const { siteTitle } = useSiteCustomization();
   const isAdmin = !authLoading && currentUser?.email === ADMIN_EMAIL;
 
   useEffect(() => {
@@ -1134,26 +1315,26 @@ export default function HomePage() {
                   </span>
                 )}
                 <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                 {!isAdmin && ( // Mostra Dashboard solo se utente loggato E NON admin
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href="/dashboard">Dashboard</Link>
-                    </Button>
-                 )}
-                 <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={async () => {
-                      const { signOut: firebaseSignOut } = await import('firebase/auth'); 
-                      const { auth } = await import('@/lib/firebase'); 
-                      try {
-                        await firebaseSignOut(auth);
-                      } catch (error) {
-                        console.error("Errore logout dall'header:", error);
-                      }
-                    }}
-                  >
-                    Logout
+                {!isAdmin && ( // Mostra Dashboard solo se utente loggato E NON admin
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/dashboard">Dashboard</Link>
                   </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    const { signOut: firebaseSignOut } = await import('firebase/auth');
+                    const { auth } = await import('@/lib/firebase');
+                    try {
+                      await firebaseSignOut(auth);
+                    } catch (error) {
+                      console.error("Errore logout dall'header:", error);
+                    }
+                  }}
+                >
+                  Logout
+                </Button>
               </>
             ) : (
               <>
@@ -1181,6 +1362,3 @@ export default function HomePage() {
     </div>
   );
 }
-    
-
-    

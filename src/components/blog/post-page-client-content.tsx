@@ -1,44 +1,75 @@
 
 'use client';
 
-import type { ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context";
-import { usePosts } from "@/contexts/posts-context"; 
+import { usePosts } from "@/contexts/posts-context";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/shared/page-header';
-import { ArrowLeft, ThumbsUp, MessageSquare, Loader2, Shield, Mail, Megaphone, Newspaper } from 'lucide-react';
+import { ArrowLeft, Loader2, Shield, Mail, Newspaper, XIcon } from 'lucide-react';
 import type { Post } from '@/types/blog';
-import { notFound } from 'next/navigation'; 
-import { useToast } from '@/hooks/use-toast'; // Import useToast
-import { db } from '@/lib/firebase'; // Import db
-import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'; // Import firestore functions
+import { notFound } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp, Timestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { useQuery } from '@tanstack/react-query';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
+
 
 interface PostPageClientContentProps {
-  slug: string; 
+  slug: string;
   adminEmail: string;
 }
 
 const MAX_RELATED_POSTS = 3;
 
+interface Banner {
+  id: string;
+  name: string;
+  contentHTML: string;
+  placement: 'underTitle' | 'afterContent' | 'popup';
+  isActive: boolean;
+}
+
+async function fetchActiveBanners(): Promise<Banner[]> {
+  const bannersRef = collection(db, "banners");
+  const q = query(bannersRef, where("isActive", "==", true), orderBy("createdAt", "desc"));
+  const querySnapshot = await getDocs(q);
+  const activeBanners: Banner[] = [];
+  querySnapshot.forEach((doc) => {
+    activeBanners.push({ id: doc.id, ...doc.data() } as Banner);
+  });
+  return activeBanners;
+}
+
+
 export default function PostPageClientContent({ slug, adminEmail }: PostPageClientContentProps) {
   const { currentUser, loading: authLoading } = useAuth();
   const { siteTitle } = useSiteCustomization();
-  const { posts, getPostBySlug } = usePosts(); 
-  const [post, setPost] = useState<Post | undefined | null>(undefined); 
+  const { posts, getPostBySlug } = usePosts();
+  const [post, setPost] = useState<Post | undefined | null>(undefined);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [isSubscribing, setIsSubscribing] = useState(false);
   const { toast } = useToast();
 
+  const { data: activeBanners = [] } = useQuery<Banner[], Error>({
+    queryKey: ['activeBanners'],
+    queryFn: fetchActiveBanners,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  const [showPopupBanner, setShowPopupBanner] = useState(false);
+  const [popupBannerContent, setPopupBannerContent] = useState<string | null>(null);
+
   useEffect(() => {
     const foundPost = getPostBySlug(slug);
-    setPost(foundPost || null); 
+    setPost(foundPost || null);
   }, [slug, getPostBySlug, posts]);
 
 
@@ -46,9 +77,23 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     if (post?.title && siteTitle) {
       document.title = `${post.title} | ${siteTitle}`;
     } else if (siteTitle) {
-      document.title = siteTitle; 
+      document.title = siteTitle;
     }
   }, [siteTitle, post?.title]);
+
+  useEffect(() => {
+    const popupBanner = activeBanners.find(b => b.placement === 'popup');
+    if (popupBanner) {
+      // Simple logic: show popup once per session using sessionStorage
+      const popupShown = sessionStorage.getItem(`popupShown_${popupBanner.id}`);
+      if (!popupShown) {
+        setPopupBannerContent(popupBanner.contentHTML);
+        setShowPopupBanner(true);
+        sessionStorage.setItem(`popupShown_${popupBanner.id}`, 'true');
+      }
+    }
+  }, [activeBanners]);
+
 
   const isAdmin = !authLoading && currentUser?.email === adminEmail;
 
@@ -68,7 +113,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
         title: "Iscrizione Riuscita!",
         description: `Grazie per esserti iscritto con ${newsletterEmail}!`,
       });
-      setNewsletterEmail(''); // Clear input after successful subscription
+      setNewsletterEmail('');
     } catch (error) {
       console.error('Errore durante liscrizione alla newsletter:', error);
       toast({
@@ -86,11 +131,15 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
       return [];
     }
     return posts
-      .filter(p => p.id !== post.id) 
-      .slice(0, MAX_RELATED_POSTS); 
+      .filter(p => p.id !== post.id)
+      .slice(0, MAX_RELATED_POSTS);
   }, [post, posts]);
 
-  if (authLoading || post === undefined) { 
+  const underTitleBanner = useMemo(() => activeBanners.find(b => b.placement === 'underTitle'), [activeBanners]);
+  const afterContentBanner = useMemo(() => activeBanners.find(b => b.placement === 'afterContent'), [activeBanners]);
+
+
+  if (authLoading || post === undefined) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -98,9 +147,9 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     );
   }
 
-  if (!post) { 
-    notFound(); 
-    return null; 
+  if (!post) {
+    notFound();
+    return null;
   }
 
   return (
@@ -119,27 +168,27 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                     Admin Mode
                   </span>
                 )}
-                 <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                 {!isAdmin && ( 
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href="/dashboard">Dashboard</Link>
-                    </Button>
-                 )}
-                 <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={async () => {
-                      const { signOut: firebaseSignOut } = await import('firebase/auth');
-                      const { auth } = await import('@/lib/firebase');
-                      try {
-                        await firebaseSignOut(auth);
-                      } catch (error) {
-                        console.error("Errore logout dall'header del post:", error);
-                      }
-                    }}
-                  >
-                    Logout
+                <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
+                {!isAdmin && (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/dashboard">Dashboard</Link>
                   </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    const { signOut: firebaseSignOut } = await import('firebase/auth');
+                    const { auth } = await import('@/lib/firebase');
+                    try {
+                      await firebaseSignOut(auth);
+                    } catch (error) {
+                      console.error("Errore logout dall'header del post:", error);
+                    }
+                  }}
+                >
+                  Logout
+                </Button>
               </>
             ) : (
               <>
@@ -164,7 +213,15 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
 
         <article className="max-w-3xl mx-auto">
           <PageHeader title={post.title} />
-          
+
+          {/* Under Title Banner */}
+          {underTitleBanner && (
+            <div 
+              className="my-6 p-4 border rounded-md shadow-sm bg-card"
+              dangerouslySetInnerHTML={{ __html: underTitleBanner.contentHTML }} 
+            />
+          )}
+
           <div className="mb-4 text-sm text-muted-foreground">
             <span>Pubblicato da </span>
             <span className="font-medium">{post.author}</span>
@@ -181,7 +238,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                 height={400}
                 className="w-full h-auto object-cover"
                 data-ai-hint={post.imageHint || "blog image"}
-                priority 
+                priority
               />
             </div>
           )}
@@ -190,7 +247,14 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
             <p className="whitespace-pre-wrap">{post.content}</p>
           </div>
 
-          {/* Sezione Iscrizione Newsletter */}
+          {/* After Content Banner */}
+          {afterContentBanner && (
+            <div 
+              className="my-8 p-4 border rounded-md shadow-sm bg-card"
+              dangerouslySetInnerHTML={{ __html: afterContentBanner.contentHTML }}
+            />
+          )}
+          
           <Card className="mt-12 shadow-lg">
             <CardHeader>
               <CardTitle className="text-2xl flex items-center">
@@ -222,12 +286,11 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
             </CardContent>
           </Card>
 
-          {/* Sezione Articoli Correlati */}
           {relatedPosts.length > 0 && (
             <Card className="mt-8 shadow-lg">
               <CardHeader>
                 <CardTitle className="text-xl flex items-center">
-                  <Newspaper className="mr-3 h-5 w-5 text-primary" /> 
+                  <Newspaper className="mr-3 h-5 w-5 text-primary" />
                   Articoli Correlati
                 </CardTitle>
               </CardHeader>
@@ -244,7 +307,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                               width={300}
                               height={168}
                               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                              data-ai-hint={relatedPost.imageHint || relatedPost.title.split(' ').slice(0,2).join(' ') || "related article"}
+                              data-ai-hint={relatedPost.imageHint || relatedPost.title.split(' ').slice(0, 2).join(' ') || "related article"}
                             />
                           </div>
                         )}
@@ -260,8 +323,36 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
               </CardContent>
             </Card>
           )}
-          
         </article>
+
+        {/* Popup Banner */}
+        {popupBannerContent && (
+          <AlertDialog open={showPopupBanner} onOpenChange={setShowPopupBanner}>
+            <AlertDialogContent className="max-w-md">
+              <AlertDialogHeader>
+                {/* <AlertDialogTitle>Annuncio</AlertDialogTitle> You can add a title if needed */}
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute top-2 right-2 h-6 w-6"
+                    onClick={() => setShowPopupBanner(false)}
+                >
+                    <XIcon className="h-4 w-4" />
+                    <span className="sr-only">Chiudi</span>
+                </Button>
+              </AlertDialogHeader>
+              <AlertDialogDescription asChild>
+                <div dangerouslySetInnerHTML={{ __html: popupBannerContent }} />
+              </AlertDialogDescription>
+              {/* 
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setShowPopupBanner(false)}>Chiudi</AlertDialogCancel>
+              </AlertDialogFooter>
+              */}
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
       </main>
 
       <footer className="py-8 mt-12 border-t bg-background">
