@@ -12,34 +12,24 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon, Users, MailCheck, PlusCircle, Newspaper, Megaphone, CheckSquare, CircleOff, UserCog } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, PlusCircle, Megaphone, CheckSquare, CircleOff, UserCog } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context";
 import { usePosts } from "@/contexts/posts-context";
 import { processBlogPost, type ProcessBlogPostInput, type ProcessBlogPostOutput } from "@/ai/flows/process-blog-post";
 import { syndicateAndProcessContent, type SyndicateAndProcessContentInput, type SyndicateAndProcessContentOutput, type ProcessedArticleData as FeedProcessedArticleData } from "@/ai/flows/syndicate-and-process-content";
 import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type ScrapedAndProcessedArticleData } from "@/ai/flows/scrapeUrlAndProcessContent";
-import { generateNewsletterContent, type GenerateNewsletterInput, type GenerateNewsletterOutput } from "@/ai/flows/generate-newsletter-content";
 import { useToast } from "@/hooks/use-toast";
 import type { Post } from '@/types/blog';
-import { db, auth as firebaseAuth } from '@/lib/firebase'; // Import auth for client-side check
+import { db, auth as firebaseAuth } from '@/lib/firebase';
 import { collection, getDocs, orderBy, query, Timestamp, addDoc, serverTimestamp, where } from 'firebase/firestore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 
 
 const ADMIN_EMAIL = "coppolek@gmail.com";
-// IMPORTANTE: In un'app di produzione, questo UID dovrebbe essere gestito in modo più sicuro,
-// ad esempio tramite custom claims o configurazioni backend.
-// Per ora, inserisci qui l'UID del tuo account admin per testare le regole di Firestore.
-// Puoi trovare l'UID nella console Firebase > Authentication > Utenti.
 const ADMIN_UID_FOR_RULES = "INSERISCI_QUI_L_UID_DEL_TUO_ADMIN"; // !!! SOSTITUISCI QUESTO !!!
 
-interface NewsletterSubscriber {
-  id: string;
-  email: string;
-  subscribedAt: string;
-}
 
 interface Banner {
   id: string;
@@ -195,7 +185,6 @@ function AdminNewsSiteView() {
 
   const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
 
-  // State for AI manual processing / editor
   const [originalPostTitle, setOriginalPostTitle] = useState("");
   const [originalPostContent, setOriginalPostContent] = useState("");
   const [originalPostImageUrl, setOriginalPostImageUrl] = useState("");
@@ -204,33 +193,17 @@ function AdminNewsSiteView() {
   const [isProcessingPostManual, setIsProcessingPostManual] = useState(false);
   const [processedPostDataManual, setProcessedPostDataManual] = useState<ProcessBlogPostOutput | null>(null);
 
-  // State for feed import
   const [feedUrl, setFeedUrl] = useState("");
   const [defaultFeedCategory, setDefaultFeedCategory] = useState("Feed");
   const [isProcessingFeed, setIsProcessingFeed] = useState(false);
   const [processedFeedArticles, setProcessedFeedArticles] = useState<FeedProcessedArticleData[]>([]);
   const [feedProcessingErrors, setFeedProcessingErrors] = useState<{ originalTitle?: string, error: string }[]>([]);
 
-  // State for URL scraping
   const [scrapeUrlInput, setScrapeUrlInput] = useState("");
   const [scrapeCategory, setScrapeCategory] = useState("Scraping");
   const [isScrapingAndProcessing, setIsScrapingAndProcessing] = useState(false);
   const [scrapedAndProcessedData, setScrapedAndProcessedData] = useState<ScrapedAndProcessedArticleData | null>(null);
 
-  // State for Newsletter Subscribers
-  const [newsletterSubscribers, setNewsletterSubscribers] = useState<NewsletterSubscriber[]>([]);
-  const [isLoadingSubscribers, setIsLoadingSubscribers] = useState(false);
-  const [newSubscriberEmail, setNewSubscriberEmail] = useState("");
-  const [isAddingSubscriber, setIsAddingSubscriber] = useState(false);
-
-  // State for Newsletter Generation
-  const [newsletterAdminPrompt, setNewsletterAdminPrompt] = useState("");
-  const [generatedNewsletterSubject, setGeneratedNewsletterSubject] = useState<string | null>(null);
-  const [generatedNewsletterBody, setGeneratedNewsletterBody] = useState<string | null>(null);
-  const [isGeneratingNewsletter, setIsGeneratingNewsletter] = useState(false);
-  const [isSendingNewsletter, setIsSendingNewsletter] = useState(false);
-
-  // State for Banners
   const [bannerName, setBannerName] = useState("");
   const [bannerContentHTML, setBannerContentHTML] = useState("");
   const [bannerPlacement, setBannerPlacement] = useState<'underTitle' | 'afterContent' | 'popup'>('underTitle');
@@ -254,35 +227,6 @@ function AdminNewsSiteView() {
   useEffect(() => setLocalPrimaryFgSaturation(currentGlobalPrimaryFgSaturation), [currentGlobalPrimaryFgSaturation]);
   useEffect(() => setLocalPrimaryFgLightness(currentGlobalPrimaryFgLightness), [currentGlobalPrimaryFgLightness]);
 
-  const fetchNewsletterSubscribers = async () => {
-    setIsLoadingSubscribers(true);
-    const clientUser = firebaseAuth.currentUser;
-    console.log('[AdminPanel] Attempting to fetch subscribers. Client-side user email for rules check:', clientUser?.email);
-    console.log('[AdminPanel] Client-side user UID for rules check:', clientUser?.uid);
-
-
-    try {
-      const subscribersCollection = collection(db, "newsletterSubscriptions");
-      const q = query(subscribersCollection, orderBy("subscribedAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      const subscribers: NewsletterSubscriber[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        subscribers.push({
-          id: doc.id,
-          email: data.email,
-          subscribedAt: data.subscribedAt instanceof Timestamp ? data.subscribedAt.toDate().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "Data non disponibile",
-        });
-      });
-      setNewsletterSubscribers(subscribers);
-    } catch (error) {
-      console.error("Errore nel recupero degli iscritti alla newsletter:", error);
-      toast({ title: "Errore Caricamento Iscritti", description: "Impossibile caricare gli iscritti. Controlla i permessi Firestore.", variant: "destructive" });
-    } finally {
-      setIsLoadingSubscribers(false);
-    }
-  };
-
   const fetchBanners = async () => {
     setIsLoadingBanners(true);
     try {
@@ -299,7 +243,7 @@ function AdminNewsSiteView() {
           placement: data.placement,
           isActive: data.isActive,
           createdAt: data.createdAt,
-        } as Banner); // Type assertion
+        } as Banner);
       });
       setBannersList(fetchedBanners);
     } catch (error) {
@@ -312,7 +256,6 @@ function AdminNewsSiteView() {
 
 
   useEffect(() => {
-    fetchNewsletterSubscribers();
     fetchBanners();
   }, []);
 
@@ -387,7 +330,7 @@ function AdminNewsSiteView() {
     setOriginalPostContent("");
     setOriginalPostImageUrl("");
     setOriginalPostImageHint("");
-    setPostCategory("Generale"); // Reset category
+    setPostCategory("Generale");
     setProcessedPostDataManual(null);
   };
 
@@ -446,9 +389,9 @@ function AdminNewsSiteView() {
     let imageUrlForEditor = "";
     let imageHintForEditor = "";
 
-    if ('originalTitleFromFeed' in article) { // Article from feed
+    if ('originalTitleFromFeed' in article) {
       titleForEditor = article.originalTitleFromFeed || article.processedTitle;
-    } else if ('extractedImageUrl' in article && article.extractedImageUrl) { // Article from URL scraping
+    } else if ('extractedImageUrl' in article && article.extractedImageUrl) {
       imageUrlForEditor = article.extractedImageUrl;
       imageHintForEditor = article.processedTitle.split(' ').slice(0, 2).join(' ') || "immagine articolo";
     }
@@ -520,106 +463,6 @@ function AdminNewsSiteView() {
     }
   };
 
-  const handleAddSubscriber = async () => {
-    if (!newSubscriberEmail.trim()) {
-      toast({ title: "Email Mancante", description: "Inserisci un indirizzo email da aggiungere.", variant: "destructive" });
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newSubscriberEmail.trim())) {
-      toast({ title: "Email Non Valida", description: "Inserisci un indirizzo email valido.", variant: "destructive" });
-      return;
-    }
-
-    setIsAddingSubscriber(true);
-    try {
-      await addDoc(collection(db, "newsletterSubscriptions"), {
-        email: newSubscriberEmail.trim(),
-        subscribedAt: serverTimestamp(),
-      });
-      toast({ title: "Iscritto Aggiunto!", description: `${newSubscriberEmail.trim()} è stato aggiunto alla newsletter.` });
-      setNewSubscriberEmail("");
-      fetchNewsletterSubscribers();
-    } catch (error) {
-      console.error("Errore aggiunta iscritto:", error);
-      toast({ title: "Errore Aggiunta", description: "Impossibile aggiungere l'iscritto.", variant: "destructive" });
-    } finally {
-      setIsAddingSubscriber(false);
-    }
-  };
-
-  const handleGenerateNewsletter = async () => {
-    if (!newsletterAdminPrompt.trim()) {
-      toast({ title: "Prompt Mancante", description: "Per favore, inserisci un prompt per generare la newsletter.", variant: "destructive" });
-      return;
-    }
-    setIsGeneratingNewsletter(true);
-    setGeneratedNewsletterSubject(null);
-    setGeneratedNewsletterBody(null);
-    try {
-      const input: GenerateNewsletterInput = {
-        adminPrompt: newsletterAdminPrompt,
-        siteTitle: currentGlobalTitle,
-      };
-      const result: GenerateNewsletterOutput = await generateNewsletterContent(input);
-      setGeneratedNewsletterSubject(result.subject);
-      setGeneratedNewsletterBody(result.body);
-      toast({ title: "Newsletter Generata!", description: "Il contenuto della newsletter è pronto." });
-    } catch (error) {
-      console.error("Errore durante la generazione della newsletter:", error);
-      toast({ title: "Errore Generazione Newsletter", description: (error as Error).message || "Si è verificato un errore.", variant: "destructive" });
-    } finally {
-      setIsGeneratingNewsletter(false);
-    }
-  };
-
-  const handleSendNewsletter = async () => {
-    if (!generatedNewsletterSubject || !generatedNewsletterBody) {
-      toast({ title: "Contenuto Newsletter Mancante", description: "Genera prima il contenuto della newsletter.", variant: "destructive" });
-      return;
-    }
-    setIsSendingNewsletter(true);
-    try {
-      const subscribersSnapshot = await getDocs(query(collection(db, "newsletterSubscriptions")));
-      const subscriberEmails: string[] = [];
-      subscribersSnapshot.forEach((doc) => {
-        subscriberEmails.push(doc.data().email);
-      });
-
-      if (subscriberEmails.length === 0) {
-        toast({
-          title: "Nessun Iscritto",
-          description: "Non ci sono iscritti alla newsletter a cui inviare.",
-          variant: "default"
-        });
-        setIsSendingNewsletter(false);
-        return;
-      }
-
-      const emailPromises = subscriberEmails.map(email => {
-        return addDoc(collection(db, "mail"), {
-          to: [email],
-          message: {
-            subject: generatedNewsletterSubject,
-            html: generatedNewsletterBody,
-          },
-        });
-      });
-
-      await Promise.all(emailPromises);
-
-      toast({
-        title: "Newsletter Accodate per l'Invio!",
-        description: `Le email per ${subscriberEmails.length} iscritti sono state aggiunte alla coda di invio. L'estensione "Trigger Email" le processerà.`,
-      });
-
-    } catch (error) {
-      console.error("Errore durante l'accodamento delle newsletter:", error);
-      toast({ title: "Errore Invio Newsletter", description: "Impossibile accodare le email per l'invio. Verifica la console per dettagli.", variant: "destructive" });
-    } finally {
-      setIsSendingNewsletter(false);
-    }
-  };
 
   const handleAddBanner = async () => {
     if (!bannerName.trim() || !bannerContentHTML.trim()) {
@@ -627,7 +470,7 @@ function AdminNewsSiteView() {
       return;
     }
     setIsAddingBanner(true);
-    const clientUser = firebaseAuth.currentUser; // Get current user for UID
+    const clientUser = firebaseAuth.currentUser;
     console.log('[AdminPanel] Attempting to add banner. Current user UID for rules check:', clientUser?.uid);
 
 
@@ -943,7 +786,7 @@ function AdminNewsSiteView() {
                     />
                   </div>
                   <Button onClick={handlePublishPost} disabled={!processedPostDataManual || !postCategory} className="w-full mt-2">
-                    <Send className="mr-2 h-4 w-4" />
+                    <PlusCircle className="mr-2 h-4 w-4" />
                     Pubblica Post sul Blog
                   </Button>
                 </div>
@@ -952,8 +795,8 @@ function AdminNewsSiteView() {
           </Card>
         </div>
 
-        {/* Colonna Personalizzazione, Newsletter & Banner */}
-        <div className="space-y-6 md:col-span-2 xl:col-span-1"> {/* md:col-span-2 per farla andare a capo su medium */}
+        {/* Colonna Personalizzazione & Banner */}
+        <div className="space-y-6 md:col-span-2 xl:col-span-1">
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -1053,134 +896,6 @@ function AdminNewsSiteView() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Users className="h-6 w-6 text-primary" />
-                Gestione Iscritti Newsletter
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-end gap-2">
-                  <div className="flex-grow">
-                    <Label htmlFor="newSubscriberEmail" className="text-xs text-muted-foreground">Nuova Email</Label>
-                    <Input
-                      id="newSubscriberEmail"
-                      type="email"
-                      placeholder="email@esempio.com"
-                      value={newSubscriberEmail}
-                      onChange={(e) => setNewSubscriberEmail(e.target.value)}
-                      disabled={isAddingSubscriber}
-                      className="h-9"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleAddSubscriber}
-                    disabled={isAddingSubscriber || !newSubscriberEmail.trim()}
-                    size="sm"
-                    className="shrink-0"
-                  >
-                    {isAddingSubscriber ? <Loader2 className="animate-spin h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
-                  </Button>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled
-                >
-                  Importa Iscritti (Prossimamente)
-                </Button>
-              </div>
-
-              {isLoadingSubscribers ? (
-                <div className="flex justify-center items-center p-4 mt-4">
-                  <Loader2 className="animate-spin h-6 w-6 text-primary" />
-                  <span className="ml-2">Caricamento iscritti...</span>
-                </div>
-              ) : newsletterSubscribers.length > 0 ? (
-                <ul className="space-y-2 max-h-60 overflow-y-auto border p-2 rounded-md mt-4">
-                  {newsletterSubscribers.map(sub => (
-                    <li key={sub.id} className="text-sm p-1.5 bg-muted/50 rounded-sm">
-                      <span className="font-medium">{sub.email}</span> - <span className="text-xs text-muted-foreground">Iscritto il: {sub.subscribedAt}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground mt-4 text-center">Nessun iscritto alla newsletter al momento.</p>
-              )}
-              <Button onClick={fetchNewsletterSubscribers} variant="outline" size="sm" className="mt-4 w-full">
-                {isLoadingSubscribers ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
-                Aggiorna Lista Iscritti
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <MailCheck className="h-6 w-6 text-primary" />
-                Generazione Newsletter
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="newsletterAdminPrompt">Contenuto Newsletter / Prompt AI</Label>
-                <Textarea
-                  id="newsletterAdminPrompt"
-                  placeholder="Scrivi il contenuto o un prompt per l'AI per la newsletter..."
-                  rows={5}
-                  className="mt-1"
-                  value={newsletterAdminPrompt}
-                  onChange={(e) => setNewsletterAdminPrompt(e.target.value)}
-                  disabled={isGeneratingNewsletter || isSendingNewsletter}
-                />
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button
-                  onClick={handleGenerateNewsletter}
-                  disabled={isGeneratingNewsletter || isSendingNewsletter || !newsletterAdminPrompt.trim()}
-                  className="flex-1"
-                >
-                  {isGeneratingNewsletter ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                  Genera con AI
-                </Button>
-                <Button
-                  onClick={handleSendNewsletter}
-                  disabled={isSendingNewsletter || !generatedNewsletterSubject || !generatedNewsletterBody}
-                  variant="secondary"
-                  className="flex-1"
-                  title="Assicurati di aver configurato l'estensione Firebase 'Trigger Email'"
-                >
-                  {isSendingNewsletter ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />}
-                  Invia Newsletter Reale
-                </Button>
-              </div>
-              {generatedNewsletterSubject && generatedNewsletterBody && (
-                <div className="mt-6 space-y-4 border-t pt-4">
-                  <div>
-                    <Label className="font-semibold">Oggetto Newsletter Generato:</Label>
-                    <Input
-                      readOnly
-                      value={generatedNewsletterSubject}
-                      className="mt-1 bg-muted"
-                    />
-                  </div>
-                  <div>
-                    <Label className="font-semibold">Corpo Newsletter Generato:</Label>
-                    <Textarea
-                      readOnly
-                      value={generatedNewsletterBody}
-                      rows={10}
-                      className="mt-1 bg-muted text-sm"
-                    />
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Banner Management Card */}
           <Card className="shadow-lg">
             <CardHeader>
@@ -1269,7 +984,6 @@ function AdminNewsSiteView() {
                             </div>
                             {b.isActive ? <CheckSquare className="h-5 w-5 text-green-600" /> : <CircleOff className="h-5 w-5 text-red-600" />}
                         </div>
-                         {/* Future: Add Edit/Delete buttons here */}
                       </Card>
                     ))}
                   </div>
@@ -1283,8 +997,6 @@ function AdminNewsSiteView() {
               </div>
             </CardContent>
           </Card>
-
-
         </div>
       </div>
     </div>
@@ -1317,7 +1029,7 @@ export default function HomePage() {
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            <UserCog className="h-6 w-6 text-primary" /> {/* Changed from Icons.AppLogo */}
+            <UserCog className="h-6 w-6 text-primary" />
             <span className="font-bold text-xl text-primary">{siteTitle}</span>
           </Link>
           <nav className="flex items-center space-x-2">
@@ -1356,7 +1068,6 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                {/* Pulsante Registrati Rimosso */}
               </>
             )}
           </nav>
@@ -1378,5 +1089,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    

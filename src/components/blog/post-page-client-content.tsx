@@ -9,10 +9,8 @@ import { useSiteCustomization } from "@/contexts/site-customization-context";
 import { usePosts } from "@/contexts/posts-context";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/shared/page-header';
-import { ArrowLeft, Loader2, Shield, Mail, Newspaper, XIcon, AlertTriangle } from 'lucide-react'; // Added AlertTriangle
+import { ArrowLeft, Loader2, Shield, Newspaper, XIcon, AlertTriangle } from 'lucide-react';
 import type { Post } from '@/types/blog';
 import { notFound } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -60,7 +58,7 @@ async function fetchActiveBanners(): Promise<Banner[]> {
     } else if (error.code === 'failed-precondition' || (error.message && error.message.toLowerCase().includes("requires an index"))) {
         console.error("[PostPageClientContent] Firestore query for banners requires an index. Please ensure the composite index (isActive ASC, createdAt DESC) is created and active in Firestore. Error details:", error.message);
     }
-    throw error; // Re-throw to be caught by useQuery
+    throw error;
   }
 }
 
@@ -70,14 +68,12 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   const { siteTitle } = useSiteCustomization();
   const { posts, getPostBySlug } = usePosts();
   const [post, setPost] = useState<Post | undefined | null>(undefined);
-  const [newsletterEmail, setNewsletterEmail] = useState('');
-  const [isSubscribing, setIsSubscribing] = useState(false);
   const { toast } = useToast();
 
   const { data: activeBanners = [], isLoading: isLoadingBanners, isError: isErrorBanners, error: bannersError } = useQuery<Banner[], Error>({
-    queryKey: ['activeBanners', slug], // Using slug in queryKey to potentially refetch if slug changes, though banners are global
+    queryKey: ['activeBanners', slug],
     queryFn: fetchActiveBanners,
-    staleTime: 5 * 60 * 1000, // Banners are considered fresh for 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 
   const [showPopupBanner, setShowPopupBanner] = useState(false);
@@ -85,8 +81,8 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
 
   useEffect(() => {
     const foundPost = getPostBySlug(slug);
-    setPost(foundPost || null); // Set to null if not found, to trigger notFound() later
-    if (!foundPost && !posts.length) { 
+    setPost(foundPost || null);
+    if (!foundPost && !posts.length) {
         console.log("[PostPageClientContent] Post not found initially, posts array might be empty or loading.");
     } else if (!foundPost && posts.length > 0) {
         console.log(`[PostPageClientContent] Post with slug "${slug}" not found in PostsContext.`);
@@ -95,7 +91,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
 
 
   useEffect(() => {
-    if (posts.length > 0 && post === null) { // If posts are loaded and current post is definitively not found
+    if (posts.length > 0 && post === null) {
         notFound();
     }
   }, [post, posts]);
@@ -105,7 +101,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     if (post?.title && siteTitle) {
       document.title = `${post.title} | ${siteTitle}`;
     } else if (siteTitle) {
-      document.title = siteTitle; // Fallback if post not loaded yet
+      document.title = siteTitle;
     }
   }, [siteTitle, post?.title]);
 
@@ -118,13 +114,13 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     }
     if (!isLoadingBanners && !isErrorBanners) {
       console.log('[PostPageClientContent] Banners fetched (or cache used), count:', activeBanners.length);
-      if (activeBanners.length === 0 && !isErrorBanners) { // Added !isErrorBanners to be more specific
+      if (activeBanners.length === 0 && !isErrorBanners) {
         console.warn('[PostPageClientContent] No active banners found. Check Firestore data and security rules for "banners" collection.');
       }
       const popupBanner = activeBanners.find(b => b.placement === 'popup');
       if (popupBanner) {
         console.log('[PostPageClientContent] Popup banner found:', popupBanner.name);
-        const popupShownKey = `popupShown_${popupBanner.id}_${slug}`; // Key specific to post and banner
+        const popupShownKey = `popupShown_${popupBanner.id}_${slug}`;
         const popupShown = sessionStorage.getItem(popupShownKey);
         if (!popupShown) {
           console.log('[PostPageClientContent] Showing popup banner:', popupBanner.name);
@@ -143,43 +139,12 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
 
   const isAdmin = !authLoading && currentUser?.email === adminEmail;
 
-  const handleNewsletterSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!newsletterEmail) {
-      toast({ title: "Email Mancante", description: "Per favore, inserisci un indirizzo email.", variant: "destructive" });
-      return;
-    }
-    setIsSubscribing(true);
-    try {
-      await addDoc(collection(db, "newsletterSubscriptions"), {
-        email: newsletterEmail,
-        subscribedAt: serverTimestamp(),
-      });
-      toast({
-        title: "Iscrizione Riuscita!",
-        description: `Grazie per esserti iscritto con ${newsletterEmail}!`,
-      });
-      setNewsletterEmail('');
-    } catch (error) {
-      console.error('Errore durante liscrizione alla newsletter:', error);
-      toast({
-        title: "Errore Iscrizione",
-        description: (error instanceof Error ? error.message : "Impossibile completare l'iscrizione.") + " Verifica le regole Firestore per 'newsletterSubscriptions'.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubscribing(false);
-    }
-  };
-
   const relatedPosts = useMemo(() => {
     if (!post || posts.length <= 1) {
       return [];
     }
-    // Simple logic: take the first N posts that are not the current one.
-    // For more sophisticated related posts, you might filter by category or tags.
     return posts
-      .filter(p => p.id !== post.id) // Exclude current post
+      .filter(p => p.id !== post.id)
       .slice(0, MAX_RELATED_POSTS);
   }, [post, posts]);
 
@@ -187,7 +152,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   const afterContentBannerData = useMemo(() => activeBanners.find(b => b.placement === 'afterContent'), [activeBanners]);
 
 
-  if (authLoading || post === undefined) { // Still loading auth or initial post data
+  if (authLoading || post === undefined) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -195,9 +160,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     );
   }
 
-  if (!post) { // Post definitely not found after context load
-     // This case should be handled by the useEffect that calls notFound()
-     // but as a fallback:
+  if (!post) {
     return (
         <div className="flex min-h-screen w-full items-center justify-center bg-background">
           <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -209,8 +172,8 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   const renderContentWithInArticleBanner = () => {
     if (!post.content) return null;
 
-    const paragraphs = post.content.split(/\n\s*\n/); 
-    const bannerInsertionPoint = paragraphs.length > 1 ? 1 : 0; // After first para, or at start
+    const paragraphs = post.content.split(/\n\s*\n/);
+    const bannerInsertionPoint = paragraphs.length > 1 ? 1 : 0;
 
     return (
       <>
@@ -218,11 +181,10 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
           <p key={`pre-banner-p-${i}`} className="whitespace-pre-wrap">{p}</p>
         ))}
         
-        {/* Insert banner if it exists and we haven't passed all paragraphs yet OR if it's meant for the end */}
         {afterContentBannerData && bannerInsertionPoint < paragraphs.length && (
-          <div 
-            className="my-6 p-4 border rounded-md shadow-sm bg-card" 
-            dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }} 
+          <div
+            className="my-6 p-4 border rounded-md shadow-sm bg-card"
+            dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }}
           />
         )}
         
@@ -230,19 +192,17 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
           <p key={`post-banner-p-${i}`} className="whitespace-pre-wrap">{p}</p>
         ))}
         
-        {/* Case: Banner should be after the content if it's a single paragraph or content was empty */}
         {afterContentBannerData && bannerInsertionPoint === paragraphs.length && paragraphs.length > 0 && (
-           <div 
-            className="my-6 p-4 border rounded-md shadow-sm bg-card" 
-            dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }} 
+           <div
+            className="my-6 p-4 border rounded-md shadow-sm bg-card"
+            dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }}
           />
         )}
         
-        {/* Case: Content was empty, still show banner */}
         {afterContentBannerData && paragraphs.length === 0 && (
-           <div 
-            className="my-6 p-4 border rounded-md shadow-sm bg-card" 
-            dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }} 
+           <div
+            className="my-6 p-4 border rounded-md shadow-sm bg-card"
+            dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }}
           />
         )}
       </>
@@ -255,7 +215,6 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            {/* <Icons.AppLogo className="h-6 w-6" /> */}
             <span className="font-bold text-xl text-primary">{siteTitle}</span>
           </Link>
           <nav className="flex items-center space-x-2">
@@ -268,7 +227,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                   </span>
                 )}
                 <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                {!isAdmin && ( // Solo per utenti normali loggati
+                {!isAdmin && (
                   <Button variant="outline" size="sm" asChild>
                     <Link href="/dashboard">Dashboard</Link>
                   </Button>
@@ -277,14 +236,11 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                   variant="ghost"
                   size="sm"
                   onClick={async () => {
-                    // Dynamic import for signOut to keep initial bundle small
                     const { signOut: firebaseSignOut } = await import('firebase/auth');
                     const { auth } = await import('@/lib/firebase');
                     try {
                       await firebaseSignOut(auth);
                       toast({ title: "Logout Effettuato", description: "Sei stato disconnesso." });
-                      // Potresti voler reindirizzare alla homepage o al login
-                      // router.push('/'); 
                     } catch (error) {
                       console.error("Errore logout dall'header del post:", error);
                        toast({ title: "Errore Logout", description: "Impossibile effettuare il logout.", variant: "destructive" });
@@ -299,7 +255,6 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                {/* Pulsante Registrati Rimosso */}
               </>
             )}
           </nav>
@@ -320,8 +275,8 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
           <div className="my-6 p-4 border border-destructive bg-destructive/10 text-destructive rounded-md shadow-sm flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
             <p>
-              Errore durante il caricamento dei banner. Controlla la console del browser per dettagli (F12).
-              Potrebbe essere un problema di permessi Firestore o indici mancanti.
+              Impossibile caricare i banner. Controlla la console del browser (F12) per dettagli sull'errore.
+              Potrebbe essere un problema di permessi Firestore o indici mancanti per la collezione 'banners'.
             </p>
           </div>
         )}
@@ -330,9 +285,9 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
           <PageHeader title={post.title} />
 
           {underTitleBanner && (
-            <div 
+            <div
               className="my-6 p-4 border rounded-md shadow-sm bg-card"
-              dangerouslySetInnerHTML={{ __html: underTitleBanner.contentHTML }} 
+              dangerouslySetInnerHTML={{ __html: underTitleBanner.contentHTML }}
             />
           )}
 
@@ -352,7 +307,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                 height={400}
                 className="w-full h-auto object-cover"
                 data-ai-hint={post.imageHint || "blog image"}
-                priority // Consider adding priority if this is the LCP
+                priority
               />
             </div>
           )}
@@ -361,38 +316,6 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
             {afterContentBannerData ? renderContentWithInArticleBanner() : <p className="whitespace-pre-wrap">{post.content}</p>}
           </div>
           
-          {/* Sezione Iscrizione Newsletter */}
-          <Card className="mt-12 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-2xl flex items-center">
-                <Mail className="mr-3 h-6 w-6 text-primary" />
-                Iscriviti alla Newsletter
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground mb-4">
-                Rimani aggiornato con le ultime novità e articoli direttamente nella tua casella di posta.
-              </p>
-              <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-2">
-                <Label htmlFor="newsletter-email-post" className="sr-only">Email</Label>
-                <Input
-                  id="newsletter-email-post"
-                  type="email"
-                  placeholder="La tua email"
-                  value={newsletterEmail}
-                  onChange={(e) => setNewsletterEmail(e.target.value)}
-                  required
-                  className="flex-grow"
-                  disabled={isSubscribing}
-                />
-                <Button type="submit" className="w-full sm:w-auto" disabled={isSubscribing}>
-                  {isSubscribing ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
-                  Iscriviti
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
           {/* Sezione Articoli Correlati */}
           {relatedPosts.length > 0 && (
             <Card className="mt-8 shadow-lg">
@@ -433,33 +356,24 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
           )}
         </article>
 
-        {/* Popup Banner */}
         {popupBannerContent && (
           <AlertDialog open={showPopupBanner} onOpenChange={setShowPopupBanner}>
             <AlertDialogContent className="max-w-md">
-              <AlertDialogHeader className="relative"> {/* Added relative for positioning X */}
-                {/* Ensure XIcon is imported or use a valid icon */}
-                <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute top-2 right-2 h-6 w-6 z-10 rounded-full p-0" // Adjusted positioning and styling
+              <AlertDialogHeader className="relative">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 h-6 w-6 z-10 rounded-full p-0"
                     onClick={() => setShowPopupBanner(false)}
                     aria-label="Chiudi popup"
                 >
                     <XIcon className="h-4 w-4" />
                     <span className="sr-only">Chiudi</span>
                 </Button>
-                {/* Optional: Add a title if needed, or remove AlertDialogTitle if contentHTML has its own title */}
-                {/* <AlertDialogTitle>Annuncio</AlertDialogTitle> */}
               </AlertDialogHeader>
-              {/* Use asChild to prevent nesting p > div which can be invalid depending on contentHTML */}
-              <AlertDialogDescription asChild> 
+              <AlertDialogDescription asChild>
                 <div dangerouslySetInnerHTML={{ __html: popupBannerContent }} />
               </AlertDialogDescription>
-              {/* Optional: Add a cancel button if it makes sense for your popup */}
-              {/* <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setShowPopupBanner(false)}>Chiudi</AlertDialogCancel>
-              </AlertDialogFooter> */}
             </AlertDialogContent>
           </AlertDialog>
         )}
