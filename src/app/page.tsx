@@ -12,24 +12,25 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon, Users, MailCheck, PlusCircle } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon, Users, MailCheck, PlusCircle, Newspaper } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context"; 
 import { usePosts } from "@/contexts/posts-context"; 
 import { processBlogPost, type ProcessBlogPostInput, type ProcessBlogPostOutput } from "@/ai/flows/process-blog-post";
 import { syndicateAndProcessContent, type SyndicateAndProcessContentInput, type SyndicateAndProcessContentOutput, type ProcessedArticleData as FeedProcessedArticleData } from "@/ai/flows/syndicate-and-process-content";
 import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type ScrapedAndProcessedArticleData } from "@/ai/flows/scrapeUrlAndProcessContent";
+import { generateNewsletterContent, type GenerateNewsletterInput, type GenerateNewsletterOutput } from "@/ai/flows/generate-newsletter-content";
 import { useToast } from "@/hooks/use-toast";
 import type { Post } from '@/types/blog'; 
-import { db } from '@/lib/firebase'; // Import db
-import { collection, getDocs, orderBy, query, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore'; // Import firestore functions
+import { db } from '@/lib/firebase';
+import { collection, getDocs, orderBy, query, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
 
 interface NewsletterSubscriber {
   id: string;
   email: string;
-  subscribedAt: string; // Formattato come stringa per la visualizzazione
+  subscribedAt: string; 
 }
 
 function BlogFeedView() {
@@ -98,7 +99,7 @@ function BlogFeedView() {
                     <span>{post.upvotes}</span>
                   </Button>
                    <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
-                    <Link href={`/blog/${post.slug}#comments`}>
+                     <Link href={`/blog/${post.slug}#comments`}>
                       <span className="inline-flex items-center">
                         <MessageSquare className="mr-1.5 h-4 w-4" />
                         <span>{post.commentsCount} Commenti</span>
@@ -203,6 +204,12 @@ function AdminNewsSiteView() {
   const [isLoadingSubscribers, setIsLoadingSubscribers] = useState(false);
   const [newSubscriberEmail, setNewSubscriberEmail] = useState("");
   const [isAddingSubscriber, setIsAddingSubscriber] = useState(false);
+
+  // State for Newsletter Generation
+  const [newsletterAdminPrompt, setNewsletterAdminPrompt] = useState("");
+  const [generatedNewsletterSubject, setGeneratedNewsletterSubject] = useState<string | null>(null);
+  const [generatedNewsletterBody, setGeneratedNewsletterBody] = useState<string | null>(null);
+  const [isGeneratingNewsletter, setIsGeneratingNewsletter] = useState(false);
 
 
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
@@ -454,7 +461,6 @@ function AdminNewsSiteView() {
       toast({ title: "Email Mancante", description: "Inserisci un indirizzo email da aggiungere.", variant: "destructive"});
       return;
     }
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newSubscriberEmail.trim())) {
       toast({ title: "Email Non Valida", description: "Inserisci un indirizzo email valido.", variant: "destructive"});
@@ -468,8 +474,8 @@ function AdminNewsSiteView() {
         subscribedAt: serverTimestamp(),
       });
       toast({ title: "Iscritto Aggiunto!", description: `${newSubscriberEmail.trim()} è stato aggiunto alla newsletter.`});
-      setNewSubscriberEmail(""); // Clear input
-      fetchNewsletterSubscribers(); // Refresh list
+      setNewSubscriberEmail(""); 
+      fetchNewsletterSubscribers(); 
     } catch (error) {
       console.error("Errore aggiunta iscritto:", error);
       toast({ title: "Errore Aggiunta", description: "Impossibile aggiungere l'iscritto.", variant: "destructive"});
@@ -478,6 +484,30 @@ function AdminNewsSiteView() {
     }
   };
 
+  const handleGenerateNewsletter = async () => {
+    if (!newsletterAdminPrompt.trim()) {
+      toast({ title: "Prompt Mancante", description: "Per favore, inserisci un prompt per generare la newsletter.", variant: "destructive" });
+      return;
+    }
+    setIsGeneratingNewsletter(true);
+    setGeneratedNewsletterSubject(null);
+    setGeneratedNewsletterBody(null);
+    try {
+      const input: GenerateNewsletterInput = {
+        adminPrompt: newsletterAdminPrompt,
+        siteTitle: currentGlobalTitle, // Passa il titolo corrente del sito
+      };
+      const result: GenerateNewsletterOutput = await generateNewsletterContent(input);
+      setGeneratedNewsletterSubject(result.subject);
+      setGeneratedNewsletterBody(result.body);
+      toast({ title: "Newsletter Generata!", description: "Il contenuto della newsletter è pronto." });
+    } catch (error) {
+      console.error("Errore durante la generazione della newsletter:", error);
+      toast({ title: "Errore Generazione Newsletter", description: (error as Error).message || "Si è verificato un errore.", variant: "destructive" });
+    } finally {
+      setIsGeneratingNewsletter(false);
+    }
+  };
 
   return (
     <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
@@ -485,9 +515,9 @@ function AdminNewsSiteView() {
         title="Pannello Admin & News del Sito"
         description="Benvenuto, Admin! Ecco le ultime attività e gli strumenti di gestione."
       />
-      <div className="grid md:grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+      <div className="grid md:grid-cols-1 md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] xl:grid-cols-[400px_1fr_350px] gap-6 mt-8">
         {/* Colonna Sinistra/Principale per i tools */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="xl:col-span-1 space-y-6 order-1 xl:order-none">
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -673,8 +703,10 @@ function AdminNewsSiteView() {
               )}
             </CardContent>
           </Card>
-          
-           <Card className="shadow-lg" id="ai-manual-processing-card">
+        </div>
+        
+        <div className="xl:col-span-1 space-y-6 order-2 xl:order-none" id="ai-manual-processing-card">
+           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Sparkles className="h-6 w-6 text-primary" />
@@ -775,7 +807,7 @@ function AdminNewsSiteView() {
         </div>
 
         {/* Colonna Destra/Sidebar per altre info */}
-        <aside className="space-y-6">
+        <aside className="space-y-6 order-3 xl:order-none xl:col-span-1">
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -910,12 +942,11 @@ function AdminNewsSiteView() {
                   variant="outline" 
                   size="sm" 
                   className="w-full"
-                  disabled // Placeholder per importazione
+                  disabled 
                 >
                   Importa Iscritti (Prossimamente)
                 </Button>
               </div>
-
 
               {isLoadingSubscribers ? (
                 <div className="flex justify-center items-center p-4 mt-4">
@@ -944,27 +975,59 @@ function AdminNewsSiteView() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <MailCheck className="h-6 w-6 text-primary" />
-                Generazione Newsletter (Placeholder)
+                Generazione Newsletter
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="newsletterContent">Contenuto Newsletter / Prompt AI</Label>
-                <Textarea id="newsletterContent" placeholder="Scrivi il contenuto o un prompt per l'AI..." rows={5} className="mt-1" />
+                <Label htmlFor="newsletterAdminPrompt">Contenuto Newsletter / Prompt AI</Label>
+                <Textarea 
+                    id="newsletterAdminPrompt" 
+                    placeholder="Scrivi il contenuto o un prompt per l'AI per la newsletter..." 
+                    rows={5} 
+                    className="mt-1"
+                    value={newsletterAdminPrompt}
+                    onChange={(e) => setNewsletterAdminPrompt(e.target.value)}
+                    disabled={isGeneratingNewsletter}
+                />
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
-                <Button disabled className="flex-1">
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Genera con AI (Prossimamente)
+                <Button 
+                    onClick={handleGenerateNewsletter} 
+                    disabled={isGeneratingNewsletter || !newsletterAdminPrompt.trim()} 
+                    className="flex-1"
+                >
+                  {isGeneratingNewsletter ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  Genera con AI
                 </Button>
                 <Button disabled variant="secondary" className="flex-1">
                   <Send className="mr-2 h-4 w-4" />
                   Invia Newsletter (Prossimamente)
                 </Button>
               </div>
+              {generatedNewsletterSubject && generatedNewsletterBody && (
+                <div className="mt-6 space-y-4 border-t pt-4">
+                  <div>
+                    <Label className="font-semibold">Oggetto Newsletter Generato:</Label>
+                    <Input 
+                        readOnly 
+                        value={generatedNewsletterSubject} 
+                        className="mt-1 bg-muted" 
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-semibold">Corpo Newsletter Generato:</Label>
+                    <Textarea 
+                      readOnly 
+                      value={generatedNewsletterBody} 
+                      rows={10} 
+                      className="mt-1 bg-muted text-sm"
+                    />
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
-          
         </aside>
       </div>
     </div>
