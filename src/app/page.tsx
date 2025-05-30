@@ -210,6 +210,7 @@ function AdminNewsSiteView() {
   const [generatedNewsletterSubject, setGeneratedNewsletterSubject] = useState<string | null>(null);
   const [generatedNewsletterBody, setGeneratedNewsletterBody] = useState<string | null>(null);
   const [isGeneratingNewsletter, setIsGeneratingNewsletter] = useState(false);
+  const [isSendingNewsletter, setIsSendingNewsletter] = useState(false);
 
 
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
@@ -495,7 +496,7 @@ function AdminNewsSiteView() {
     try {
       const input: GenerateNewsletterInput = {
         adminPrompt: newsletterAdminPrompt,
-        siteTitle: currentGlobalTitle, // Passa il titolo corrente del sito
+        siteTitle: currentGlobalTitle, 
       };
       const result: GenerateNewsletterOutput = await generateNewsletterContent(input);
       setGeneratedNewsletterSubject(result.subject);
@@ -509,204 +510,245 @@ function AdminNewsSiteView() {
     }
   };
 
+  const handleSendNewsletter = async () => {
+    if (!generatedNewsletterSubject || !generatedNewsletterBody) {
+      toast({ title: "Contenuto Newsletter Mancante", description: "Genera prima il contenuto della newsletter.", variant: "destructive" });
+      return;
+    }
+    setIsSendingNewsletter(true);
+    try {
+      const subscribersCollection = collection(db, "newsletterSubscriptions");
+      const q = query(subscribersCollection); // No ordering needed, just get all
+      const querySnapshot = await getDocs(q);
+      const subscriberEmails: string[] = [];
+      querySnapshot.forEach((doc) => {
+        subscriberEmails.push(doc.data().email);
+      });
+
+      if (subscriberEmails.length > 0) {
+        console.log("--- INIZIO SIMULAZIONE INVIO NEWSLETTER ---");
+        console.log("Oggetto:", generatedNewsletterSubject);
+        console.log("Corpo (primi 200 caratteri):", generatedNewsletterBody.substring(0, 200) + "...");
+        console.log(`La newsletter SAREBBE STATA INVIATA a ${subscriberEmails.length} iscritti:`);
+        subscriberEmails.forEach(email => console.log(`- ${email}`));
+        console.log("--- FINE SIMULAZIONE INVIO NEWSLETTER ---");
+        toast({
+          title: "Invio Newsletter (Simulato)",
+          description: `La newsletter è stata 'inviata' a ${subscriberEmails.length} iscritti. Controlla la console per i dettagli.`,
+        });
+      } else {
+        toast({
+          title: "Nessun Iscritto",
+          description: "Non ci sono iscritti alla newsletter a cui inviare.",
+          variant: "default"
+        });
+      }
+    } catch (error) {
+      console.error("Errore durante il recupero degli iscritti per l'invio simulato:", error);
+      toast({ title: "Errore Invio Simulata", description: "Impossibile recuperare gli iscritti.", variant: "destructive" });
+    } finally {
+      setIsSendingNewsletter(false);
+    }
+  };
+
   return (
     <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
       <PageHeader
         title="Pannello Admin & News del Sito"
         description="Benvenuto, Admin! Ecco le ultime attività e gli strumenti di gestione."
       />
-      <div className="grid md:grid-cols-1 md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] xl:grid-cols-[400px_1fr_350px] gap-6 mt-8">
-        {/* Colonna Sinistra/Principale per i tools */}
-        <div className="xl:col-span-1 space-y-6 order-1 xl:order-none">
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Rss className="h-6 w-6 text-primary" />
-                Importa ed Elabora Feed
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="feedUrlInput" className="text-muted-foreground">URL Feed RSS/Atom</Label>
-                <Input 
-                  id="feedUrlInput" 
-                  type="url" 
-                  placeholder="esempio.com/feed.xml" 
-                  value={feedUrl}
-                  onChange={(e) => setFeedUrl(e.target.value)}
-                  disabled={isProcessingFeed}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="defaultFeedCategoryInput" className="text-muted-foreground">Categoria Predefinita per il Feed</Label>
-                <Input 
-                  id="defaultFeedCategoryInput" 
-                  type="text" 
-                  placeholder="Es: Novità Tecnologiche" 
-                  value={defaultFeedCategory}
-                  onChange={(e) => setDefaultFeedCategory(e.target.value)}
-                  disabled={isProcessingFeed}
-                  className="mt-1"
-                />
-              </div>
-              <Button onClick={handleSyndicateAndProcess} disabled={isProcessingFeed || !feedUrl || !defaultFeedCategory} className="w-full">
-                {isProcessingFeed ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2"/>}
-                Importa ed Elabora Feed
-              </Button> 
-              
-              {feedProcessingErrors.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <h4 className="font-semibold text-sm text-destructive mb-1">Errori/Note Elaborazione Feed:</h4>
-                  {feedProcessingErrors.map((err, index) => (
-                    <Card key={`error-${index}`} className="p-2 text-xs bg-destructive/10 border-destructive/30">
-                      {err.originalTitle && <p className="font-medium truncate" title={err.originalTitle}>Articolo: {err.originalTitle}</p>}
-                      <p className="text-destructive">{err.error}</p>
-                    </Card>
-                  ))}
+      <div className="grid md:grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+        {/* Colonna Sinistra/Principale per i tools di contenuto */}
+        <div className="lg:col-span-2 space-y-6 order-1">
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Rss className="h-6 w-6 text-primary" />
+                  Importa ed Elabora Feed
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="feedUrlInput" className="text-muted-foreground">URL Feed RSS/Atom</Label>
+                  <Input 
+                    id="feedUrlInput" 
+                    type="url" 
+                    placeholder="esempio.com/feed.xml" 
+                    value={feedUrl}
+                    onChange={(e) => setFeedUrl(e.target.value)}
+                    disabled={isProcessingFeed}
+                    className="mt-1"
+                  />
                 </div>
-              )}
-
-              {processedFeedArticles.length > 0 && (
-                <div className="mt-4 space-y-2 max-h-96 overflow-y-auto border p-2 rounded-md">
-                  <h4 className="font-semibold text-sm mb-2">Articoli Elaborati dal Feed:</h4>
-                  {processedFeedArticles.map((article, index) => (
-                    <Card key={article.originalLink || index} className="p-2 text-sm bg-muted/50">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-grow overflow-hidden">
-                            <p className="font-medium truncate text-xs text-muted-foreground" title={article.originalTitleFromFeed}>
-                                Orig: {article.originalTitleFromFeed || "N/D"}
-                            </p>
-                            <p className="font-semibold truncate" title={article.processedTitle}>
-                                Elaborato: {article.processedTitle || "Nessun Titolo"}
-                            </p>
-                        </div>
-                        <div className="flex gap-1 shrink-0 ml-2">
-                            {article.originalLink && (
-                                <Button variant="outline" size="icon" className="h-7 w-7" asChild>
-                                    <a href={article.originalLink} target="_blank" rel="noopener noreferrer" title="Apri originale">
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                    </a>
-                                </Button>
-                            )}
-                            <Button 
-                                variant="outline" 
-                                size="icon" 
-                                className="h-7 w-7"
-                                onClick={() => handleReviewAndEditProcessedArticle(article, defaultFeedCategory)}
-                                title="Rivedi ed Edita Articolo Elaborato"
-                            >
-                                <FileEdit className="h-3.5 w-3.5" />
-                            </Button>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+                <div>
+                  <Label htmlFor="defaultFeedCategoryInput" className="text-muted-foreground">Categoria Predefinita per il Feed</Label>
+                  <Input 
+                    id="defaultFeedCategoryInput" 
+                    type="text" 
+                    placeholder="Es: Novità Tecnologiche" 
+                    value={defaultFeedCategory}
+                    onChange={(e) => setDefaultFeedCategory(e.target.value)}
+                    disabled={isProcessingFeed}
+                    className="mt-1"
+                  />
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <Button onClick={handleSyndicateAndProcess} disabled={isProcessingFeed || !feedUrl || !defaultFeedCategory} className="w-full">
+                  {isProcessingFeed ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2"/>}
+                  Importa ed Elabora Feed
+                </Button> 
+                
+                {feedProcessingErrors.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <h4 className="font-semibold text-sm text-destructive mb-1">Errori/Note Elaborazione Feed:</h4>
+                    {feedProcessingErrors.map((err, index) => (
+                      <Card key={`error-${index}`} className="p-2 text-xs bg-destructive/10 border-destructive/30">
+                        {err.originalTitle && <p className="font-medium truncate" title={err.originalTitle}>Articolo: {err.originalTitle}</p>}
+                        <p className="text-destructive">{err.error}</p>
+                      </Card>
+                    ))}
+                  </div>
+                )}
 
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Rocket className="h-6 w-6 text-primary" />
-                Estrai da URL & Elabora
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="scrapeUrlInput" className="text-muted-foreground">URL da Analizzare</Label>
-                <Input 
-                  id="scrapeUrlInput" 
-                  type="url" 
-                  placeholder="https://esempio.com/articolo" 
-                  value={scrapeUrlInput}
-                  onChange={(e) => setScrapeUrlInput(e.target.value)}
-                  disabled={isScrapingAndProcessing}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="scrapeCategoryInput" className="text-muted-foreground">Categoria Articolo</Label>
-                <Input 
-                  id="scrapeCategoryInput" 
-                  type="text" 
-                  placeholder="Es: Recensioni Auto" 
-                  value={scrapeCategory}
-                  onChange={(e) => setScrapeCategory(e.target.value)}
-                  disabled={isScrapingAndProcessing}
-                  className="mt-1"
-                />
-              </div>
-              <Button onClick={handleScrapeAndProcess} disabled={isScrapingAndProcessing || !scrapeUrlInput || !scrapeCategory} className="w-full">
-                {isScrapingAndProcessing ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2"/>}
-                Estrai ed Elabora con AI
-              </Button> 
-              {scrapedAndProcessedData && (
-                <div className="mt-6 space-y-4 border-t pt-4">
-                  {scrapedAndProcessedData.error && <p className="text-sm text-destructive p-2 border border-destructive bg-destructive/10 rounded-md">{scrapedAndProcessedData.error}</p>}
-                  
-                  {scrapedAndProcessedData.extractedImageUrl && (!scrapedAndProcessedData.error || (scrapedAndProcessedData.error && scrapedAndProcessedData.processedContent)) && (
-                    <div>
-                      <Label className="font-semibold">Immagine Estratta:</Label>
-                      <div className="mt-1 p-2 border rounded-md bg-muted flex justify-center">
-                        <Image 
-                          src={scrapedAndProcessedData.extractedImageUrl} 
-                          alt="Immagine estratta" 
-                          width={200} 
-                          height={120} 
-                          className="object-contain rounded-md max-h-[120px]"
-                        />
+                {processedFeedArticles.length > 0 && (
+                  <div className="mt-4 space-y-2 max-h-96 overflow-y-auto border p-2 rounded-md">
+                    <h4 className="font-semibold text-sm mb-2">Articoli Elaborati dal Feed:</h4>
+                    {processedFeedArticles.map((article, index) => (
+                      <Card key={article.originalLink || index} className="p-2 text-sm bg-muted/50">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-grow overflow-hidden">
+                              <p className="font-medium truncate text-xs text-muted-foreground" title={article.originalTitleFromFeed}>
+                                  Orig: {article.originalTitleFromFeed || "N/D"}
+                              </p>
+                              <p className="font-semibold truncate" title={article.processedTitle}>
+                                  Elaborato: {article.processedTitle || "Nessun Titolo"}
+                              </p>
+                          </div>
+                          <div className="flex gap-1 shrink-0 ml-2">
+                              {article.originalLink && (
+                                  <Button variant="outline" size="icon" className="h-7 w-7" asChild>
+                                      <a href={article.originalLink} target="_blank" rel="noopener noreferrer" title="Apri originale">
+                                          <ExternalLink className="h-3.5 w-3.5" />
+                                      </a>
+                                  </Button>
+                              )}
+                              <Button 
+                                  variant="outline" 
+                                  size="icon" 
+                                  className="h-7 w-7"
+                                  onClick={() => handleReviewAndEditProcessedArticle(article, defaultFeedCategory)}
+                                  title="Rivedi ed Edita Articolo Elaborato"
+                              >
+                                  <FileEdit className="h-3.5 w-3.5" />
+                              </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Rocket className="h-6 w-6 text-primary" />
+                  Estrai da URL & Elabora
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="scrapeUrlInput" className="text-muted-foreground">URL da Analizzare</Label>
+                  <Input 
+                    id="scrapeUrlInput" 
+                    type="url" 
+                    placeholder="https://esempio.com/articolo" 
+                    value={scrapeUrlInput}
+                    onChange={(e) => setScrapeUrlInput(e.target.value)}
+                    disabled={isScrapingAndProcessing}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="scrapeCategoryInput" className="text-muted-foreground">Categoria Articolo</Label>
+                  <Input 
+                    id="scrapeCategoryInput" 
+                    type="text" 
+                    placeholder="Es: Recensioni Auto" 
+                    value={scrapeCategory}
+                    onChange={(e) => setScrapeCategory(e.target.value)}
+                    disabled={isScrapingAndProcessing}
+                    className="mt-1"
+                  />
+                </div>
+                <Button onClick={handleScrapeAndProcess} disabled={isScrapingAndProcessing || !scrapeUrlInput || !scrapeCategory} className="w-full">
+                  {isScrapingAndProcessing ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2"/>}
+                  Estrai ed Elabora con AI
+                </Button> 
+                {scrapedAndProcessedData && (
+                  <div className="mt-6 space-y-4 border-t pt-4">
+                    {scrapedAndProcessedData.error && <p className="text-sm text-destructive p-2 border border-destructive bg-destructive/10 rounded-md">{scrapedAndProcessedData.error}</p>}
+                    
+                    {scrapedAndProcessedData.extractedImageUrl && (!scrapedAndProcessedData.error || (scrapedAndProcessedData.error && scrapedAndProcessedData.processedContent)) && (
+                      <div>
+                        <Label className="font-semibold">Immagine Estratta:</Label>
+                        <div className="mt-1 p-2 border rounded-md bg-muted flex justify-center">
+                          <Image 
+                            src={scrapedAndProcessedData.extractedImageUrl} 
+                            alt="Immagine estratta" 
+                            width={200} 
+                            height={120} 
+                            className="object-contain rounded-md max-h-[120px]"
+                          />
+                        </div>
+                         <p className="text-xs text-muted-foreground mt-1 truncate text-center" title={scrapedAndProcessedData.extractedImageUrl}>
+                            {scrapedAndProcessedData.extractedImageUrl}
+                          </p>
                       </div>
-                       <p className="text-xs text-muted-foreground mt-1 truncate text-center" title={scrapedAndProcessedData.extractedImageUrl}>
-                          {scrapedAndProcessedData.extractedImageUrl}
-                        </p>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center">
-                    <Label className="font-semibold">Titolo Elaborato:</Label>
-                    {scrapedAndProcessedData.processedTitle && (!scrapedAndProcessedData.error || scrapedAndProcessedData.processedContent) && (
-                       <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleReviewAndEditProcessedArticle(scrapedAndProcessedData, scrapeCategory)}
-                          title="Rivedi ed Edita Articolo Elaborato"
-                          disabled={!scrapedAndProcessedData.processedContent}
-                        >
-                          <FileEdit className="h-3.5 w-3.5 mr-1" /> Rivedi
-                        </Button>
                     )}
+
+                    <div className="flex justify-between items-center">
+                      <Label className="font-semibold">Titolo Elaborato:</Label>
+                      {scrapedAndProcessedData.processedTitle && (!scrapedAndProcessedData.error || scrapedAndProcessedData.processedContent) && (
+                         <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleReviewAndEditProcessedArticle(scrapedAndProcessedData, scrapeCategory)}
+                            title="Rivedi ed Edita Articolo Elaborato"
+                            disabled={!scrapedAndProcessedData.processedContent}
+                          >
+                            <FileEdit className="h-3.5 w-3.5 mr-1" /> Rivedi
+                          </Button>
+                      )}
+                    </div>
+                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.processedTitle || "N/D"}</p>
+                    
+                    <div>
+                      <Label className="font-semibold">Meta Description:</Label>
+                      <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.metaDescription || "N/D"}</p>
+                    </div>
+                    <div>
+                      <Label className="font-semibold">Keywords SEO:</Label>
+                      <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.seoKeywords.join(', ') || "N/D"}</p>
+                    </div>
+                    <div>
+                      <Label className="font-semibold">Contenuto Elaborato (dall'AI):</Label>
+                      <Textarea 
+                        readOnly 
+                        value={scrapedAndProcessedData.processedContent || "N/D"} 
+                        rows={8} 
+                        className="mt-1 bg-muted text-sm"
+                      />
+                    </div>
+                     <p className="text-xs text-muted-foreground">URL Originale: {scrapedAndProcessedData.originalUrlScraped}</p>
                   </div>
-                  <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.processedTitle || "N/D"}</p>
-                  
-                  <div>
-                    <Label className="font-semibold">Meta Description:</Label>
-                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.metaDescription || "N/D"}</p>
-                  </div>
-                  <div>
-                    <Label className="font-semibold">Keywords SEO:</Label>
-                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.seoKeywords.join(', ') || "N/D"}</p>
-                  </div>
-                  <div>
-                    <Label className="font-semibold">Contenuto Elaborato (dall'AI):</Label>
-                    <Textarea 
-                      readOnly 
-                      value={scrapedAndProcessedData.processedContent || "N/D"} 
-                      rows={8} 
-                      className="mt-1 bg-muted text-sm"
-                    />
-                  </div>
-                   <p className="text-xs text-muted-foreground">URL Originale: {scrapedAndProcessedData.originalUrlScraped}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        
-        <div className="xl:col-span-1 space-y-6 order-2 xl:order-none" id="ai-manual-processing-card">
-           <Card className="shadow-lg">
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          
+           <Card className="shadow-lg" id="ai-manual-processing-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Sparkles className="h-6 w-6 text-primary" />
@@ -806,8 +848,8 @@ function AdminNewsSiteView() {
           </Card>
         </div>
 
-        {/* Colonna Destra/Sidebar per altre info */}
-        <aside className="space-y-6 order-3 xl:order-none xl:col-span-1">
+        {/* Colonna Destra/Sidebar per altre info e gestione */}
+        <aside className="space-y-6 order-2 lg:order-3 lg:col-span-1">
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -988,21 +1030,26 @@ function AdminNewsSiteView() {
                     className="mt-1"
                     value={newsletterAdminPrompt}
                     onChange={(e) => setNewsletterAdminPrompt(e.target.value)}
-                    disabled={isGeneratingNewsletter}
+                    disabled={isGeneratingNewsletter || isSendingNewsletter}
                 />
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button 
                     onClick={handleGenerateNewsletter} 
-                    disabled={isGeneratingNewsletter || !newsletterAdminPrompt.trim()} 
+                    disabled={isGeneratingNewsletter || isSendingNewsletter || !newsletterAdminPrompt.trim()} 
                     className="flex-1"
                 >
                   {isGeneratingNewsletter ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
                   Genera con AI
                 </Button>
-                <Button disabled variant="secondary" className="flex-1">
-                  <Send className="mr-2 h-4 w-4" />
-                  Invia Newsletter (Prossimamente)
+                <Button 
+                  onClick={handleSendNewsletter}
+                  disabled={isSendingNewsletter || !generatedNewsletterSubject || !generatedNewsletterBody} 
+                  variant="secondary" 
+                  className="flex-1"
+                >
+                  {isSendingNewsletter ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />}
+                  Invia Newsletter (Simulato)
                 </Button>
               </div>
               {generatedNewsletterSubject && generatedNewsletterBody && (
