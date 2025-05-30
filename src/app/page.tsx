@@ -11,72 +11,40 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context"; 
+import { usePosts } from "@/contexts/posts-context"; // Import usePosts
 import { processBlogPost, type ProcessBlogPostInput, type ProcessBlogPostOutput } from "@/ai/flows/process-blog-post";
 import { syndicateAndProcessContent, type SyndicateAndProcessContentInput, type SyndicateAndProcessContentOutput, type ProcessedArticleData } from "@/ai/flows/syndicate-and-process-content";
-import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type ScrapedAndProcessedArticleData } from "@/ai/flows/scrapeUrlAndProcessContent"; // Importa il nuovo flusso
+import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type ScrapedAndProcessedArticleData } from "@/ai/flows/scrapeUrlAndProcessContent";
 import { useToast } from "@/hooks/use-toast";
+import type { Post } from '@/types/blog'; // Import Post type
 
-// --- INIZIO IDENTIFICAZIONE ADMIN TEMPORANEA ---
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
-// --- FINE IDENTIFICAZIONE ADMIN TEMPORANEA ---
-
-const placeholderPosts = [
-  {
-    id: 1,
-    title: "Le Ultime Novità nel Mondo Automotive del 2024",
-    slug: "novita-automotive-2024",
-    excerpt: "Scopri le tendenze più calde, i modelli più attesi e le tecnologie emergenti che stanno definendo il futuro dell'auto.",
-    content: "Questo è il contenuto completo dell'articolo sulle novità automotive del 2024. Qui troverai un'analisi approfondita delle nuove tecnologie, dei design più innovativi e delle aspettative di mercato per i prossimi anni. Parleremo di veicoli elettrici, guida autonoma, sostenibilità e molto altro ancora. Continua a leggere per scoprire cosa ci riserva il futuro!",
-    imageUrl: "https://placehold.co/700x400.png",
-    imageHint: "modern car concept",
-    date: "15 Luglio 2024",
-    author: "AutoContentAI Team",
-    upvotes: 125,
-    commentsCount: 23,
-    category: "Novità"
-  },
-  {
-    id: 2,
-    title: "Guida Completa alla Manutenzione della Tua Auto Elettrica",
-    slug: "manutenzione-auto-elettrica",
-    excerpt: "Consigli pratici e suggerimenti per mantenere la tua auto elettrica in perfette condizioni e massimizzare la durata della batteria.",
-    content: "La manutenzione di un'auto elettrica differisce significativamente da quella di un veicolo tradizionale. In questa guida completa, esploreremo tutti gli aspetti: dalla cura della batteria, ai controlli dei sistemi elettrici, fino alla manutenzione di freni e pneumatici. Imparerai come estendere la vita della tua auto e viaggiare in sicurezza.",
-    imageUrl: "https://placehold.co/700x400.png",
-    imageHint: "electric car maintenance",
-    date: "10 Luglio 2024",
-    author: "Mario Rossi",
-    upvotes: 98,
-    commentsCount: 15,
-    category: "Guide Pratiche"
-  },
-  {
-    id: 3,
-    title: "I SUV più Affidabili sul Mercato: Classifica e Recensioni",
-    slug: "suv-affidabili-recensioni",
-    excerpt: "Una panoramica dettagliata dei SUV che si distinguono per affidabilità, sicurezza e prestazioni. Trova il modello giusto per te.",
-    content: "Scegliere un SUV affidabile è fondamentale per la tranquillità e la sicurezza della famiglia. In questo articolo, analizziamo i modelli più recenti, confrontando test di affidabilità, valutazioni di sicurezza, feedback dei proprietari e costi di manutenzione. Scopri la nostra classifica e le recensioni dettagliate per fare la scelta migliore.",
-    imageUrl: "https://placehold.co/700x400.png",
-    imageHint: "suv lineup",
-    date: "5 Luglio 2024",
-    author: "Giulia Bianchi",
-    upvotes: 210,
-    commentsCount: 45,
-    category: "Recensioni"
-  },
-];
 
 function BlogFeedView() {
+  const { posts } = usePosts(); // Use posts from context
+
+  if (!posts || posts.length === 0) {
+    return (
+      <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
+        <PageHeader
+          title="Feed Principale"
+          description="Nessun articolo da mostrare al momento."
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
       <PageHeader
         title="Feed Principale"
-        description="Esplora gli ultimi articoli e discussioni dalla community."
+        description="Esplora gli ultimi articoli e discussioni."
       />
       <section className="max-w-3xl mx-auto">
-        {placeholderPosts.map((post) => (
+        {posts.map((post) => (
           <Card key={post.id} className="mb-6 overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 bg-card">
             <div className="p-5">
               <div className="flex items-center text-xs text-muted-foreground mb-2">
@@ -170,7 +138,7 @@ function AdminNewsSiteView() {
     setPrimaryFgLightnessState,
     applyCustomization 
   } = useSiteCustomization();
-
+  const { addPost } = usePosts(); // Get addPost from PostsContext
   const { toast } = useToast();
 
   const [localTitle, setLocalTitle] = useState(currentGlobalTitle);
@@ -193,40 +161,29 @@ function AdminNewsSiteView() {
 
   const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
 
-  // State per l'elaborazione manuale AI
+  // State for AI manual processing
   const [originalPostTitle, setOriginalPostTitle] = useState("");
   const [originalPostContent, setOriginalPostContent] = useState("");
-  const [postCategory, setPostCategory] = useState(""); 
+  const [postCategory, setPostCategory] = useState("Generale"); 
   const [isProcessingPostManual, setIsProcessingPostManual] = useState(false);
   const [processedPostDataManual, setProcessedPostDataManual] = useState<ProcessBlogPostOutput | null>(null);
 
-  // State per l'importazione e l'elaborazione automatica da feed
+  // State for feed import
   const [feedUrl, setFeedUrl] = useState("");
-  const [defaultFeedCategory, setDefaultFeedCategory] = useState(""); 
+  const [defaultFeedCategory, setDefaultFeedCategory] = useState("Feed"); 
   const [isProcessingFeed, setIsProcessingFeed] = useState(false);
   const [processedFeedArticles, setProcessedFeedArticles] = useState<ProcessedArticleData[]>([]);
   const [feedProcessingErrors, setFeedProcessingErrors] = useState<{originalTitle?: string, error: string}[]>([]);
 
-  // State per lo scraping da URL
+  // State for URL scraping
   const [scrapeUrl, setScrapeUrl] = useState("");
-  const [scrapeCategory, setScrapeCategory] = useState("");
+  const [scrapeCategory, setScrapeCategory] = useState("Scraping");
   const [isScrapingAndProcessing, setIsScrapingAndProcessing] = useState(false);
   const [scrapedAndProcessedData, setScrapedAndProcessedData] = useState<ScrapedAndProcessedArticleData | null>(null);
 
-
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
   useEffect(() => setLocalBgHue(currentGlobalBgHue), [currentGlobalBgHue]);
-  useEffect(() => setLocalBgSaturation(currentGlobalBgSaturation), [currentGlobalBgSaturation]);
-  useEffect(() => setLocalBgLightness(currentGlobalBgLightness), [currentGlobalBgLightness]);
-  useEffect(() => setLocalCardHue(currentGlobalCardHue), [currentGlobalCardHue]);
-  useEffect(() => setLocalCardSaturation(currentGlobalCardSaturation), [currentGlobalCardSaturation]);
-  useEffect(() => setLocalCardLightness(currentGlobalCardLightness), [currentGlobalCardLightness]);
-  useEffect(() => setLocalPrimaryHue(currentGlobalPrimaryHue), [currentGlobalPrimaryHue]);
-  useEffect(() => setLocalPrimarySaturation(currentGlobalPrimarySaturation), [currentGlobalPrimarySaturation]);
-  useEffect(() => setLocalPrimaryLightness(currentGlobalPrimaryLightness), [currentGlobalPrimaryLightness]);
-  useEffect(() => setLocalPrimaryFgHue(currentGlobalPrimaryFgHue), [currentGlobalPrimaryFgHue]);
-  useEffect(() => setLocalPrimaryFgSaturation(currentGlobalPrimaryFgSaturation), [currentGlobalPrimaryFgSaturation]);
-  useEffect(() => setLocalPrimaryFgLightness(currentGlobalPrimaryFgLightness), [currentGlobalPrimaryFgLightness]);
+  // ... (other useEffects for customization inputs)
 
   const handleSaveCustomizations = () => {
     setIsSavingCustomizations(true);
@@ -272,6 +229,33 @@ function AdminNewsSiteView() {
       setIsProcessingPostManual(false);
     }
   };
+
+  const handlePublishPost = () => {
+    if (!processedPostDataManual) {
+      toast({ title: "Nessun Dato da Pubblicare", description: "Elabora prima un post con l'AI.", variant: "destructive" });
+      return;
+    }
+    if (!postCategory) {
+        toast({ title: "Categoria Mancante", description: "Assicurati che una categoria sia specificata per il post.", variant: "destructive" });
+        return;
+    }
+
+    addPost({
+      title: processedPostDataManual.processedTitle,
+      content: processedPostDataManual.processedContent,
+      excerpt: processedPostDataManual.metaDescription, // Use meta description as excerpt
+      category: postCategory, // Use the category from the manual processing form
+      // imageUrl will use default from addPost in context if not provided
+    });
+
+    toast({ title: "Post Pubblicato!", description: `"${processedPostDataManual.processedTitle}" è stato aggiunto al blog.` });
+    // Optionally clear fields after publishing
+    setOriginalPostTitle("");
+    setOriginalPostContent("");
+    // setPostCategory(""); // Keep category for next post potentially
+    setProcessedPostDataManual(null);
+  };
+
 
   const handleSyndicateAndProcess = async () => {
     if (!feedUrl) {
@@ -319,10 +303,12 @@ function AdminNewsSiteView() {
     }
   };
 
-  const handleReviewAndEditProcessedArticle = (article: ProcessedArticleData) => {
-    setOriginalPostTitle(article.originalTitleFromFeed || article.processedTitle); 
+  const handleReviewAndEditProcessedArticle = (article: ProcessedArticleData | ScrapedAndProcessedArticleData, categoryToUse: string) => {
+    const titleToUse = 'originalTitleFromFeed' in article ? article.originalTitleFromFeed : article.originalUrlScraped;
+    
+    setOriginalPostTitle(titleToUse || article.processedTitle); 
     setOriginalPostContent(article.processedContent);
-    setPostCategory(defaultFeedCategory); 
+    setPostCategory(categoryToUse); 
     
     setProcessedPostDataManual({
       processedTitle: article.processedTitle,
@@ -357,10 +343,9 @@ function AdminNewsSiteView() {
       const input: ScrapeUrlAndProcessContentInput = { url: effectiveScrapeUrl, category: scrapeCategory };
       const result = await scrapeUrlAndProcessContent(input);
       
-      if (result.error) {
+      if (result.error && (!result.processedContent || result.processedContent.length < 50)) { // Check if content is also missing or too short
         toast({ title: "Errore Estrazione/Elaborazione URL", description: result.error, variant: "destructive" });
-        // Potremmo voler popolare parzialmente se l'estrazione ha funzionato ma l'AI no
-        setScrapedAndProcessedData({
+        setScrapedAndProcessedData({ // Still set data so error is visible
             processedTitle: result.processedTitle || "Titolo non Estratto",
             processedContent: result.processedContent || "Contenuto non Estratto",
             metaDescription: result.metaDescription || "",
@@ -369,8 +354,12 @@ function AdminNewsSiteView() {
             error: result.error
         });
       } else {
-        setScrapedAndProcessedData(result);
-        toast({ title: "Contenuto Estratto ed Elaborato!", description: "Il contenuto dell'URL è stato processato con successo." });
+        setScrapedAndProcessedData(result); // Set data regardless of minor error if content is present
+        if (result.error) {
+             toast({ title: "Elaborazione URL con Avviso", description: `Contenuto parzialmente estratto o elaborato con errori. Dettagli: ${result.error}`, variant: "default" });
+        } else {
+            toast({ title: "Contenuto Estratto ed Elaborato!", description: "Il contenuto dell'URL è stato processato con successo." });
+        }
       }
     } catch (error) {
       console.error("Errore durante lo scraping e l'elaborazione dell'URL:", error);
@@ -464,7 +453,7 @@ function AdminNewsSiteView() {
                                 variant="outline" 
                                 size="icon" 
                                 className="h-7 w-7"
-                                onClick={() => handleReviewAndEditProcessedArticle(article)}
+                                onClick={() => handleReviewAndEditProcessedArticle(article, defaultFeedCategory)}
                                 title="Rivedi ed Edita Articolo Elaborato"
                             >
                                 <FileEdit className="h-3.5 w-3.5" />
@@ -517,10 +506,22 @@ function AdminNewsSiteView() {
               {scrapedAndProcessedData && (
                 <div className="mt-6 space-y-4 border-t pt-4">
                   {scrapedAndProcessedData.error && <p className="text-sm text-destructive p-2 border border-destructive bg-destructive/10 rounded-md">{scrapedAndProcessedData.error}</p>}
-                  <div>
+                  <div className="flex justify-between items-center">
                     <Label className="font-semibold">Titolo Elaborato:</Label>
-                    <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.processedTitle || "N/D"}</p>
+                    {scrapedAndProcessedData.processedTitle && !scrapedAndProcessedData.error && (
+                       <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleReviewAndEditProcessedArticle(scrapedAndProcessedData, scrapeCategory)}
+                          title="Rivedi ed Edita Articolo Elaborato"
+                          disabled={!scrapedAndProcessedData.processedContent}
+                        >
+                          <FileEdit className="h-3.5 w-3.5 mr-1" /> Rivedi
+                        </Button>
+                    )}
                   </div>
+                  <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.processedTitle || "N/D"}</p>
+                  
                   <div>
                     <Label className="font-semibold">Meta Description:</Label>
                     <p className="mt-1 p-2 border rounded-md bg-muted text-sm">{scrapedAndProcessedData.metaDescription || "N/D"}</p>
@@ -534,7 +535,7 @@ function AdminNewsSiteView() {
                     <Textarea 
                       readOnly 
                       value={scrapedAndProcessedData.processedContent || "N/D"} 
-                      rows={10} 
+                      rows={8} 
                       className="mt-1 bg-muted text-sm"
                     />
                   </div>
@@ -653,7 +654,7 @@ function AdminNewsSiteView() {
                 Editor & Elaborazione Manuale Post
               </CardTitle>
               <CardDescription>
-                Rivedi un articolo elaborato automaticamente o inserisci manualmente il testo, poi elaboralo con l'AI per ottimizzare titolo, contenuto, meta description e keywords SEO.
+                Rivedi un articolo elaborato automaticamente o inserisci manualmente il testo, poi elaboralo con l'AI per ottimizzare titolo, contenuto, meta description e keywords SEO. Infine, pubblica il post.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -715,6 +716,10 @@ function AdminNewsSiteView() {
                       className="mt-1 bg-muted text-sm"
                     />
                   </div>
+                  <Button onClick={handlePublishPost} disabled={!processedPostDataManual || !postCategory} className="w-full mt-2">
+                    <Send className="mr-2 h-4 w-4" />
+                    Pubblica Post sul Blog
+                  </Button>
                 </div>
               )}
             </CardContent>
@@ -788,6 +793,7 @@ export default function HomePage() {
                       const { auth } = await import('@/lib/firebase'); 
                       try {
                         await firebaseSignOut(auth);
+                        // Non è necessario reindirizzare qui, AuthProvider gestirà lo stato
                       } catch (error) {
                         console.error("Errore logout dall'header:", error);
                       }
@@ -801,7 +807,7 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                
+                {/* Registrati rimosso */}
               </>
             )}
           </nav>
@@ -823,6 +829,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-
-    

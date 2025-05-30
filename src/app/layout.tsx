@@ -4,8 +4,9 @@ import { Inter, Roboto_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from "@/contexts/auth-context"; 
-import { SiteCustomizationProvider } from '@/contexts/site-customization-context'; // Importa SiteCustomizationProvider
-import { siteConfig } from '@/config/site'; // Import siteConfig for default title
+import { SiteCustomizationProvider } from '@/contexts/site-customization-context';
+import { PostsProvider } from '@/contexts/posts-context'; // Import PostsProvider
+import { siteConfig } from '@/config/site'; 
 
 const inter = Inter({ 
   variable: '--font-inter', 
@@ -17,9 +18,8 @@ const robotoMono = Roboto_Mono({
   subsets: ['latin'],
 });
 
-// Metadata will use the static config title initially
 export const metadata: Metadata = {
-  title: siteConfig.name, // Use default from config for initial SSR
+  title: siteConfig.name, 
   description: 'AI-powered content generation for your auto blog.',
 };
 
@@ -34,9 +34,11 @@ export default function RootLayout({
         className={`${inter.variable} ${robotoMono.variable} font-sans antialiased`}
       >
         <AuthProvider>
-          <SiteCustomizationProvider> {/* Avvolgi con SiteCustomizationProvider */}
-            {children}
-            <Toaster />
+          <SiteCustomizationProvider>
+            <PostsProvider> {/* Wrap with PostsProvider */}
+              {children}
+              <Toaster />
+            </PostsProvider>
           </SiteCustomizationProvider>
         </AuthProvider>
       </body>

@@ -4,36 +4,46 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useEffect, useState } from 'react';
 import { useAuth } from "@/contexts/auth-context";
-import { useSiteCustomization } from "@/contexts/site-customization-context"; // Importa il context
+import { useSiteCustomization } from "@/contexts/site-customization-context";
+import { usePosts } from "@/contexts/posts-context"; // Import usePosts
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
-// siteConfig non è più usato qui per il nome del sito
 import { ArrowLeft, ThumbsUp, MessageSquare, Loader2, Shield } from 'lucide-react';
 import type { Post } from '@/types/blog';
+import { notFound } from 'next/navigation'; // Import notFound
 
 interface PostPageClientContentProps {
-  post: Post;
+  slug: string; // Pass slug instead of the whole post object
   adminEmail: string;
 }
 
-export default function PostPageClientContent({ post, adminEmail }: PostPageClientContentProps) {
+export default function PostPageClientContent({ slug, adminEmail }: PostPageClientContentProps) {
   const { currentUser, loading: authLoading } = useAuth();
-  const { siteTitle } = useSiteCustomization(); // Ottieni il titolo del sito dal context
-  const isAdmin = !authLoading && currentUser?.email === adminEmail;
+  const { siteTitle } = useSiteCustomization();
+  const { getPostBySlug } = usePosts(); // Get posts from context
+  const [post, setPost] = useState<Post | undefined | null>(undefined); // undefined: loading, null: not found
 
-  // Effetto per aggiornare document.title quando siteTitle dal context cambia
-  // o quando il titolo del post è disponibile (per la pagina specifica del post)
-  React.useEffect(() => {
+  useEffect(() => {
+    const foundPost = getPostBySlug(slug);
+    setPost(foundPost || null); // Set to null if not found after checking
+  }, [slug, getPostBySlug]);
+
+
+  // Update document title
+  useEffect(() => {
     if (post?.title && siteTitle) {
       document.title = `${post.title} | ${siteTitle}`;
     } else if (siteTitle) {
-      document.title = siteTitle;
+      document.title = siteTitle; // Fallback to siteTitle if post not loaded/found
     }
   }, [siteTitle, post?.title]);
 
-  if (authLoading) {
+  const isAdmin = !authLoading && currentUser?.email === adminEmail;
+
+  if (authLoading || post === undefined) { // Show loader while auth or post is loading
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -41,12 +51,17 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
     );
   }
 
+  if (!post) { // If post is null (not found after trying)
+    notFound(); // Trigger the not-found UI
+    return null; // Should be unreachable due to notFound()
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-muted/40">
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            <span className="font-bold text-xl text-primary">{siteTitle}</span> {/* Usa siteTitle dal context */}
+            <span className="font-bold text-xl text-primary">{siteTitle}</span>
           </Link>
           <nav className="flex items-center space-x-2">
             {currentUser ? (
@@ -58,7 +73,7 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
                   </span>
                 )}
                  <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                 {!isAdmin && ( // Mostra Dashboard solo se non è admin
+                 {!isAdmin && ( 
                     <Button variant="outline" size="sm" asChild>
                         <Link href="/dashboard">Dashboard</Link>
                     </Button>
@@ -129,7 +144,7 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
             <p>{post.content}</p> 
           </div>
 
-          <Card className="mt-12 shadow-lg">
+          <Card className="mt-12 shadow-lg" id="comments">
             <CardHeader>
               <CardTitle className="text-2xl flex items-center">
                 <MessageSquare className="mr-2 h-6 w-6 text-primary" />
@@ -141,6 +156,7 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
                 {currentUser ? "Lascia un commento:" : "Accedi per lasciare un commento."}
               </p>
               <div className="border-t pt-4">
+                {/* TODO: Implement comment form and list */}
                 <p className="text-sm text-center text-muted-foreground">
                   (Sezione commenti in costruzione)
                 </p>
@@ -158,7 +174,7 @@ export default function PostPageClientContent({ post, adminEmail }: PostPageClie
 
       <footer className="py-8 mt-12 border-t bg-background">
         <div className="container mx-auto text-center text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} {siteTitle}. Tutti i diritti riservati.</p> {/* Usa siteTitle dal context */}
+          <p>&copy; {new Date().getFullYear()} {siteTitle}. Tutti i diritti riservati.</p>
         </div>
       </footer>
     </div>
