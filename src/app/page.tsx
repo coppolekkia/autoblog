@@ -22,13 +22,12 @@ import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type 
 import { generateNewsletterContent, type GenerateNewsletterInput, type GenerateNewsletterOutput } from "@/ai/flows/generate-newsletter-content";
 import { useToast } from "@/hooks/use-toast";
 import type { Post } from '@/types/blog';
-import { db } from '@/lib/firebase';
+import { db, auth as firebaseAuth } from '@/lib/firebase'; // Import auth for client-side check
 import { collection, getDocs, orderBy, query, Timestamp, addDoc, serverTimestamp, where } from 'firebase/firestore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 
 
-// !! IMPORTANTE !! Replicato da src/app/(app)/page.tsx per coerenza nell'identificazione dell'admin
 const ADMIN_EMAIL = "coppolek@gmail.com";
 
 interface NewsletterSubscriber {
@@ -251,6 +250,9 @@ function AdminNewsSiteView() {
 
   const fetchNewsletterSubscribers = async () => {
     setIsLoadingSubscribers(true);
+    const clientUserEmail = firebaseAuth.currentUser?.email;
+    console.log('[AdminPanel] Attempting to fetch subscribers. Client-side user email for rules check:', clientUserEmail);
+
     try {
       const subscribersCollection = collection(db, "newsletterSubscriptions");
       const q = query(subscribersCollection, orderBy("subscribedAt", "desc"));
@@ -267,7 +269,7 @@ function AdminNewsSiteView() {
       setNewsletterSubscribers(subscribers);
     } catch (error) {
       console.error("Errore nel recupero degli iscritti alla newsletter:", error);
-      toast({ title: "Errore Iscritti", description: "Impossibile caricare gli iscritti.", variant: "destructive" });
+      toast({ title: "Errore Caricamento Iscritti", description: "Impossibile caricare gli iscritti. Controlla i permessi Firestore.", variant: "destructive" });
     } finally {
       setIsLoadingSubscribers(false);
     }
@@ -435,12 +437,16 @@ function AdminNewsSiteView() {
     let imageUrlForEditor = "";
     let imageHintForEditor = "";
 
-    if ('originalTitleFromFeed' in article) {
+    if ('originalTitleFromFeed' in article) { // Article from feed
       titleForEditor = article.originalTitleFromFeed || article.processedTitle;
-    } else if ('extractedImageUrl' in article && article.extractedImageUrl) {
+      // For feed items, we don't automatically get an image URL unless the feed parser provides it
+      // and we decide to pass it through syndicateAndProcessContent and then here.
+      // Let's assume for now it's not passed for feed items to keep it simple.
+    } else if ('extractedImageUrl' in article && article.extractedImageUrl) { // Article from URL scraping
       imageUrlForEditor = article.extractedImageUrl;
       imageHintForEditor = article.processedTitle.split(' ').slice(0, 2).join(' ') || "immagine articolo";
     }
+
 
     setOriginalPostTitle(titleForEditor);
     setOriginalPostContent(article.processedContent);
@@ -584,12 +590,14 @@ function AdminNewsSiteView() {
         return;
       }
 
+      // This part interacts with Firebase Extensions "Trigger Email"
+      // It assumes the extension is configured to listen to the "mail" collection
       const emailPromises = subscriberEmails.map(email => {
         return addDoc(collection(db, "mail"), {
-          to: [email],
+          to: [email], // The extension expects an array of recipients
           message: {
             subject: generatedNewsletterSubject,
-            html: generatedNewsletterBody,
+            html: generatedNewsletterBody, // Or 'text' if your body is plain text
           },
         });
       });
@@ -939,7 +947,7 @@ function AdminNewsSiteView() {
         </div>
 
         {/* Colonna Personalizzazione, Newsletter & Banner */}
-        <div className="space-y-6 md:col-span-2 xl:col-span-1">
+        <div className="space-y-6 md:col-span-2 xl:col-span-1"> {/* md:col-span-2 per farla andare a capo su medium */}
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -1303,6 +1311,7 @@ export default function HomePage() {
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
+            {/* <Icons.AppLogo className="h-6 w-6" /> */}
             <span className="font-bold text-xl text-primary">{siteTitle}</span>
           </Link>
           <nav className="flex items-center space-x-2">
@@ -1315,7 +1324,7 @@ export default function HomePage() {
                   </span>
                 )}
                 <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                {!isAdmin && ( // Mostra Dashboard solo se utente loggato E NON admin
+                {!isAdmin && (
                   <Button variant="outline" size="sm" asChild>
                     <Link href="/dashboard">Dashboard</Link>
                   </Button>
@@ -1324,6 +1333,7 @@ export default function HomePage() {
                   variant="ghost"
                   size="sm"
                   onClick={async () => {
+                    // Dynamic import for signOut to keep initial bundle small
                     const { signOut: firebaseSignOut } = await import('firebase/auth');
                     const { auth } = await import('@/lib/firebase');
                     try {
@@ -1341,6 +1351,7 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
+                {/* Pulsante Registrati Rimosso */}
               </>
             )}
           </nav>
