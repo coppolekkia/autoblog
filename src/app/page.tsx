@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, PlusCircle, Megaphone, CheckSquare, CircleOff, Users, MailCheck, Send, Newspaper } from 'lucide-react'; // Aggiunto Newspaper
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, PlusCircle, Megaphone, CheckSquare, CircleOff, UserCog } from 'lucide-react'; // Added UserCog
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context";
 import { usePosts } from "@/contexts/posts-context";
@@ -32,7 +32,7 @@ const ADMIN_EMAIL = "coppolek@gmail.com";
 // !!! IMPORTANTE: L'UID QUI SOTTO È STATO RILEVATO DALL'ERRORE. !!!
 // !!! DEVI USARE QUESTO UID NELLE TUE REGOLE DI SICUREZZA FIRESTORE !!!
 // !!! PER PERMETTERE ALL'ADMIN DI SCRIVERE NELLA COLLEZIONE 'banners' e 'newsletterSubscriptions' ecc. !!!
-const ADMIN_UID_FOR_RULES = "ymIToxqAwnTk9vtqE4RuRIIrzkC3";
+const ADMIN_UID_FOR_RULES = "ymIToxqAwnTk9vtqE4RuRIIrzkC3"; // UID per coppolek@gmail.com
 
 
 interface Banner {
@@ -491,11 +491,10 @@ function AdminNewsSiteView() {
       setBannerContentHTML("");
       fetchBanners(); // Ricarica la lista dei banner
     } catch (error: any) {
-      console.error("Errore aggiunta banner:", error);
       const detectedUID = clientUser?.uid || 'UID_NON_DISPONIBILE';
       toast({
         title: "Errore Aggiunta Banner",
-        description: `(${error.code || 'Unknown Error'}) ${error.message}. L'UID rilevato è: '${detectedUID}'. Assicurati che questo UID sia autorizzato nelle regole di sicurezza di Firestore per la collezione 'banners'.`,
+        description: `(${error.code || 'Unknown Error'}) ${error.message}. L'UID rilevato è: '${detectedUID}'. Assicurati che questo UID (${ADMIN_UID_FOR_RULES}) sia autorizzato nelle regole di sicurezza di Firestore per la collezione 'banners'.`,
         variant: "destructive",
         duration: 9000,
       });
