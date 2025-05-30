@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge'; // Aggiunto Badge
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,8 +22,6 @@ import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type 
 import { useToast } from "@/hooks/use-toast";
 import type { Post } from '@/types/blog'; 
 
-// !! IMPORTANTE !! Replicato da src/app/login/page.tsx e src/app/(app)/page.tsx
-// Dovrebbe essere centralizzato se possibile in futuro.
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
 
 function BlogFeedView() {
@@ -46,7 +44,7 @@ function BlogFeedView() {
         title="Feed Principale"
         description="Esplora gli ultimi articoli e discussioni."
       />
-      <section className="max-w-4xl mx-auto space-y-8"> {/* Allargato e aggiunto space-y */}
+      <section className="max-w-4xl mx-auto space-y-8">
         {posts.map((post) => (
           <Card key={post.id} className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 bg-card flex flex-col">
             {post.imageUrl && (
@@ -61,7 +59,7 @@ function BlogFeedView() {
                 />
               </Link>
             )}
-            <div className="p-6 flex-grow flex flex-col"> {/* Aumentato padding */}
+            <div className="p-6 flex-grow flex flex-col">
               <div className="flex items-center text-xs text-muted-foreground mb-3">
                 {post.category && (
                   <Badge variant="secondary" className="mr-2"> 
@@ -77,15 +75,15 @@ function BlogFeedView() {
                 <span>• {post.date}</span>
               </div>
 
-              <CardTitle className="text-2xl font-semibold mb-3"> {/* Aumentata dimensione e aggiunto font-semibold */}
+              <CardTitle className="text-2xl font-semibold mb-3">
                 <Link href={`/blog/${post.slug}`} className="hover:text-primary transition-colors">
                   {post.title}
                 </Link>
               </CardTitle>
               
-              <p className="text-base text-foreground/80 mb-6 line-clamp-4 flex-grow">{post.excerpt}</p> {/* Aumentato a text-base e line-clamp-4, text-foreground/80 */}
+              <p className="text-base text-foreground/80 mb-6 line-clamp-4 flex-grow">{post.excerpt}</p>
 
-              <div className="flex items-center justify-between text-sm mt-auto pt-4 border-t border-border/50"> {/* Aggiunto border-t */}
+              <div className="flex items-center justify-between text-sm mt-auto pt-4 border-t border-border/50">
                 <div className="flex items-center space-x-3">
                   <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary px-2">
                     <ThumbsUp className="mr-1.5 h-4 w-4" />
@@ -93,14 +91,19 @@ function BlogFeedView() {
                   </Button>
                   <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
                     <Link href={`/blog/${post.slug}#comments`}>
-                      <MessageSquare className="mr-1.5 h-4 w-4" />
-                      <span>{post.commentsCount} Commenti</span>
+                      <span className="inline-flex items-center">
+                        <MessageSquare className="mr-1.5 h-4 w-4" />
+                        <span>{post.commentsCount} Commenti</span>
+                      </span>
                     </Link>
                   </Button>
                 </div>
-                <Button asChild variant="default" size="sm"> {/* Cambiato a variant="default" */}
+                <Button asChild variant="default" size="sm">
                   <Link href={`/blog/${post.slug}`}>
-                    Leggi di più <ArrowRight className="ml-2 h-4 w-4" />
+                    <span className="inline-flex items-center">
+                      Leggi di più
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </span>
                   </Link>
                 </Button>
               </div>
@@ -182,7 +185,7 @@ function AdminNewsSiteView() {
   const [feedProcessingErrors, setFeedProcessingErrors] = useState<{originalTitle?: string, error: string}[]>([]);
 
   // State for URL scraping
-  const [scrapeUrl, setScrapeUrl] = useState("");
+  const [scrapeUrlInput, setScrapeUrlInput] = useState(""); // Renamed to avoid conflict
   const [scrapeCategory, setScrapeCategory] = useState("Scraping");
   const [isScrapingAndProcessing, setIsScrapingAndProcessing] = useState(false);
   const [scrapedAndProcessedData, setScrapedAndProcessedData] = useState<ScrapedAndProcessedArticleData | null>(null);
@@ -332,10 +335,8 @@ function AdminNewsSiteView() {
     
     if ('originalTitleFromFeed' in article) { 
         titleForEditor = article.originalTitleFromFeed || article.processedTitle;
-    } else if ('extractedImageUrl' in article) { 
-        titleForEditor = (article as ScrapedAndProcessedArticleData).originalUrlScraped; // Use original URL as "title" for editor in this case
-        imageUrlForEditor = (article as ScrapedAndProcessedArticleData).extractedImageUrl || "";
-        // Attempt to create a hint from the scraped title for the image
+    } else if ('extractedImageUrl' in article && article.extractedImageUrl) { 
+        imageUrlForEditor = article.extractedImageUrl;
         imageHintForEditor = article.processedTitle.split(' ').slice(0,2).join(' ') || "immagine articolo";
     }
     
@@ -357,7 +358,7 @@ function AdminNewsSiteView() {
   };
 
   const handleScrapeAndProcess = async () => {
-    if (!scrapeUrl) {
+    if (!scrapeUrlInput) {
       toast({ title: "URL Mancante", description: "Per favore, inserisci un URL da analizzare.", variant: "destructive" });
       return;
     }
@@ -368,10 +369,10 @@ function AdminNewsSiteView() {
     setIsScrapingAndProcessing(true);
     setScrapedAndProcessedData(null);
 
-    let effectiveScrapeUrl = scrapeUrl.trim();
+    let effectiveScrapeUrl = scrapeUrlInput.trim();
     if (effectiveScrapeUrl && !effectiveScrapeUrl.startsWith('http://') && !effectiveScrapeUrl.startsWith('https://')) {
         effectiveScrapeUrl = `https://${effectiveScrapeUrl}`;
-        setScrapeUrl(effectiveScrapeUrl);
+        setScrapeUrlInput(effectiveScrapeUrl);
     }
 
     try {
@@ -517,8 +518,8 @@ function AdminNewsSiteView() {
                   id="scrapeUrlInput" 
                   type="url" 
                   placeholder="https://esempio.com/articolo" 
-                  value={scrapeUrl}
-                  onChange={(e) => setScrapeUrl(e.target.value)}
+                  value={scrapeUrlInput}
+                  onChange={(e) => setScrapeUrlInput(e.target.value)}
                   disabled={isScrapingAndProcessing}
                   className="mt-1"
                 />
@@ -535,7 +536,7 @@ function AdminNewsSiteView() {
                   className="mt-1"
                 />
               </div>
-              <Button onClick={handleScrapeAndProcess} disabled={isScrapingAndProcessing || !scrapeUrl || !scrapeCategory} className="w-full">
+              <Button onClick={handleScrapeAndProcess} disabled={isScrapingAndProcessing || !scrapeUrlInput || !scrapeCategory} className="w-full">
                 {isScrapingAndProcessing ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2"/>}
                 Estrai ed Elabora con AI
               </Button> 
@@ -543,7 +544,7 @@ function AdminNewsSiteView() {
                 <div className="mt-6 space-y-4 border-t pt-4">
                   {scrapedAndProcessedData.error && <p className="text-sm text-destructive p-2 border border-destructive bg-destructive/10 rounded-md">{scrapedAndProcessedData.error}</p>}
                   
-                  {scrapedAndProcessedData.extractedImageUrl && (!scrapedAndProcessedData.error || (scrapedAndProcessedData.error && scrapedAndProcessedData.processedContent)) && ( // Show image even if there's an error but content exists
+                  {scrapedAndProcessedData.extractedImageUrl && (!scrapedAndProcessedData.error || (scrapedAndProcessedData.error && scrapedAndProcessedData.processedContent)) && (
                     <div>
                       <Label className="font-semibold">Immagine Estratta:</Label>
                       <div className="mt-1 p-2 border rounded-md bg-muted flex justify-center">
@@ -552,7 +553,7 @@ function AdminNewsSiteView() {
                           alt="Immagine estratta" 
                           width={200} 
                           height={120} 
-                          className="object-contain rounded-md max-h-[120px]" // Added max-h
+                          className="object-contain rounded-md max-h-[120px]"
                         />
                       </div>
                        <p className="text-xs text-muted-foreground mt-1 truncate text-center" title={scrapedAndProcessedData.extractedImageUrl}>
@@ -869,7 +870,6 @@ export default function HomePage() {
                       const { auth } = await import('@/lib/firebase'); 
                       try {
                         await firebaseSignOut(auth);
-                        // Non è necessario reindirizzare qui, AuthProvider gestirà lo stato
                       } catch (error) {
                         console.error("Errore logout dall'header:", error);
                       }
@@ -904,4 +904,4 @@ export default function HomePage() {
     </div>
   );
 }
-
+    
