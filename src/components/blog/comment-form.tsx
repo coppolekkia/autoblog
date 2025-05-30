@@ -1,3 +1,4 @@
+
 // src/components/blog/comment-form.tsx
 "use client";
 
@@ -10,7 +11,7 @@ import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { Label } from '@/components/ui/label'; // Not strictly used, but good to keep if form grows
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Send } from 'lucide-react';
@@ -26,7 +27,7 @@ interface CommentFormProps {
 }
 
 export default function CommentForm({ postId }: CommentFormProps) {
-  const { currentUser } = useAuth();
+  const { currentUser } = useAuth(); // We still use this to get user info if available
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -38,22 +39,16 @@ export default function CommentForm({ postId }: CommentFormProps) {
   });
 
   const onSubmit: SubmitHandler<CommentFormValues> = async (data) => {
-    if (!currentUser) {
-      toast({
-        title: "Accesso Richiesto",
-        description: "Devi effettuare il login per commentare.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsSubmitting(true);
     try {
+      const userIdToSave = currentUser ? currentUser.uid : "anonymous";
+      const userEmailToSave = currentUser ? (currentUser.email || "Utente Loggato") : "Anonimo";
+
       await addDoc(collection(db, "comments"), {
         postId: postId,
         text: data.text,
-        userId: currentUser.uid,
-        userEmail: currentUser.email || "Anonimo", // Fallback a 'Anonimo' se l'email non è disponibile
+        userId: userIdToSave,
+        userEmail: userEmailToSave,
         createdAt: serverTimestamp(),
       });
       toast({
@@ -73,14 +68,7 @@ export default function CommentForm({ postId }: CommentFormProps) {
     }
   };
 
-  if (!currentUser) {
-    return (
-      <p className="text-muted-foreground mt-4">
-        <a href="/login" className="underline hover:text-primary">Accedi</a> per lasciare un commento.
-      </p>
-    );
-  }
-
+  // Il form è sempre visibile
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-4">
