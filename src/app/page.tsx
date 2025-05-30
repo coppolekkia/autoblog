@@ -11,12 +11,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context"; 
 import { usePosts } from "@/contexts/posts-context"; // Import usePosts
 import { processBlogPost, type ProcessBlogPostInput, type ProcessBlogPostOutput } from "@/ai/flows/process-blog-post";
-import { syndicateAndProcessContent, type SyndicateAndProcessContentInput, type SyndicateAndProcessContentOutput, type ProcessedArticleData } from "@/ai/flows/syndicate-and-process-content";
+import { syndicateAndProcessContent, type SyndicateAndProcessContentInput, type SyndicateAndProcessContentOutput, type ProcessedArticleData as FeedProcessedArticleData } from "@/ai/flows/syndicate-and-process-content";
 import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type ScrapedAndProcessedArticleData } from "@/ai/flows/scrapeUrlAndProcessContent";
 import { useToast } from "@/hooks/use-toast";
 import type { Post } from '@/types/blog'; // Import Post type
@@ -24,7 +24,7 @@ import type { Post } from '@/types/blog'; // Import Post type
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
 
 function BlogFeedView() {
-  const { posts } = usePosts(); // Use posts from context
+  const { posts } = usePosts(); 
 
   if (!posts || posts.length === 0) {
     return (
@@ -138,7 +138,7 @@ function AdminNewsSiteView() {
     setPrimaryFgLightnessState,
     applyCustomization 
   } = useSiteCustomization();
-  const { addPost } = usePosts(); // Get addPost from PostsContext
+  const { addPost } = usePosts(); 
   const { toast } = useToast();
 
   const [localTitle, setLocalTitle] = useState(currentGlobalTitle);
@@ -161,9 +161,11 @@ function AdminNewsSiteView() {
 
   const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
 
-  // State for AI manual processing
+  // State for AI manual processing / editor
   const [originalPostTitle, setOriginalPostTitle] = useState("");
   const [originalPostContent, setOriginalPostContent] = useState("");
+  const [originalPostImageUrl, setOriginalPostImageUrl] = useState("");
+  const [originalPostImageHint, setOriginalPostImageHint] = useState("");
   const [postCategory, setPostCategory] = useState("Generale"); 
   const [isProcessingPostManual, setIsProcessingPostManual] = useState(false);
   const [processedPostDataManual, setProcessedPostDataManual] = useState<ProcessBlogPostOutput | null>(null);
@@ -172,7 +174,7 @@ function AdminNewsSiteView() {
   const [feedUrl, setFeedUrl] = useState("");
   const [defaultFeedCategory, setDefaultFeedCategory] = useState("Feed"); 
   const [isProcessingFeed, setIsProcessingFeed] = useState(false);
-  const [processedFeedArticles, setProcessedFeedArticles] = useState<ProcessedArticleData[]>([]);
+  const [processedFeedArticles, setProcessedFeedArticles] = useState<FeedProcessedArticleData[]>([]);
   const [feedProcessingErrors, setFeedProcessingErrors] = useState<{originalTitle?: string, error: string}[]>([]);
 
   // State for URL scraping
@@ -183,7 +185,18 @@ function AdminNewsSiteView() {
 
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
   useEffect(() => setLocalBgHue(currentGlobalBgHue), [currentGlobalBgHue]);
-  // ... (other useEffects for customization inputs)
+  useEffect(() => setLocalBgSaturation(currentGlobalBgSaturation), [currentGlobalBgSaturation]);
+  useEffect(() => setLocalBgLightness(currentGlobalBgLightness), [currentGlobalBgLightness]);
+  useEffect(() => setLocalCardHue(currentGlobalCardHue), [currentGlobalCardHue]);
+  useEffect(() => setLocalCardSaturation(currentGlobalCardSaturation), [currentGlobalCardSaturation]);
+  useEffect(() => setLocalCardLightness(currentGlobalCardLightness), [currentGlobalCardLightness]);
+  useEffect(() => setLocalPrimaryHue(currentGlobalPrimaryHue), [currentGlobalPrimaryHue]);
+  useEffect(() => setLocalPrimarySaturation(currentGlobalPrimarySaturation), [currentGlobalPrimarySaturation]);
+  useEffect(() => setLocalPrimaryLightness(currentGlobalPrimaryLightness), [currentGlobalPrimaryLightness]);
+  useEffect(() => setLocalPrimaryFgHue(currentGlobalPrimaryFgHue), [currentGlobalPrimaryFgHue]);
+  useEffect(() => setLocalPrimaryFgSaturation(currentGlobalPrimaryFgSaturation), [currentGlobalPrimaryFgSaturation]);
+  useEffect(() => setLocalPrimaryFgLightness(currentGlobalPrimaryFgLightness), [currentGlobalPrimaryFgLightness]);
+
 
   const handleSaveCustomizations = () => {
     setIsSavingCustomizations(true);
@@ -243,15 +256,18 @@ function AdminNewsSiteView() {
     addPost({
       title: processedPostDataManual.processedTitle,
       content: processedPostDataManual.processedContent,
-      excerpt: processedPostDataManual.metaDescription, // Use meta description as excerpt
-      category: postCategory, // Use the category from the manual processing form
-      // imageUrl will use default from addPost in context if not provided
+      excerpt: processedPostDataManual.metaDescription, 
+      category: postCategory, 
+      imageUrl: originalPostImageUrl || undefined, // Use image URL from state
+      imageHint: originalPostImageHint || undefined, // Use image hint from state
     });
 
     toast({ title: "Post Pubblicato!", description: `"${processedPostDataManual.processedTitle}" è stato aggiunto al blog.` });
-    // Optionally clear fields after publishing
+    
     setOriginalPostTitle("");
     setOriginalPostContent("");
+    setOriginalPostImageUrl("");
+    setOriginalPostImageHint("");
     // setPostCategory(""); // Keep category for next post potentially
     setProcessedPostDataManual(null);
   };
@@ -303,11 +319,28 @@ function AdminNewsSiteView() {
     }
   };
 
-  const handleReviewAndEditProcessedArticle = (article: ProcessedArticleData | ScrapedAndProcessedArticleData, categoryToUse: string) => {
-    const titleToUse = 'originalTitleFromFeed' in article ? article.originalTitleFromFeed : article.originalUrlScraped;
+  const handleReviewAndEditProcessedArticle = (
+    article: FeedProcessedArticleData | ScrapedAndProcessedArticleData, 
+    categoryToUse: string
+  ) => {
+    // Determine the source of the title and image
+    let titleForEditor = article.processedTitle; // Default to processed title
+    let imageUrlForEditor = "";
     
-    setOriginalPostTitle(titleToUse || article.processedTitle); 
+    if ('originalTitleFromFeed' in article) { // It's a FeedProcessedArticleData
+        titleForEditor = article.originalTitleFromFeed || article.processedTitle;
+        // Note: Feed items don't have 'extractedImageUrl' in their current type.
+        // If feeds provide images, this needs to be handled in fetchFeedItems and SyndicateAndProcessContent
+        // For now, we assume feed items might have `article.originalLink` and not a direct image URL in `ProcessedArticleData` type.
+    } else if ('extractedImageUrl' in article) { // It's a ScrapedAndProcessedArticleData
+        titleForEditor = article.originalUrlScraped; // Or some other indicator of origin
+        imageUrlForEditor = article.extractedImageUrl || "";
+    }
+    
+    setOriginalPostTitle(titleForEditor); 
     setOriginalPostContent(article.processedContent);
+    setOriginalPostImageUrl(imageUrlForEditor);
+    setOriginalPostImageHint(""); // Reset or derive hint if possible
     setPostCategory(categoryToUse); 
     
     setProcessedPostDataManual({
@@ -343,18 +376,19 @@ function AdminNewsSiteView() {
       const input: ScrapeUrlAndProcessContentInput = { url: effectiveScrapeUrl, category: scrapeCategory };
       const result = await scrapeUrlAndProcessContent(input);
       
-      if (result.error && (!result.processedContent || result.processedContent.length < 50)) { // Check if content is also missing or too short
+      if (result.error && (!result.processedContent || result.processedContent.length < 50)) { 
         toast({ title: "Errore Estrazione/Elaborazione URL", description: result.error, variant: "destructive" });
-        setScrapedAndProcessedData({ // Still set data so error is visible
+        setScrapedAndProcessedData({
             processedTitle: result.processedTitle || "Titolo non Estratto",
             processedContent: result.processedContent || "Contenuto non Estratto",
             metaDescription: result.metaDescription || "",
             seoKeywords: result.seoKeywords || [],
             originalUrlScraped: result.originalUrlScraped,
+            extractedImageUrl: result.extractedImageUrl,
             error: result.error
         });
       } else {
-        setScrapedAndProcessedData(result); // Set data regardless of minor error if content is present
+        setScrapedAndProcessedData(result); 
         if (result.error) {
              toast({ title: "Elaborazione URL con Avviso", description: `Contenuto parzialmente estratto o elaborato con errori. Dettagli: ${result.error}`, variant: "default" });
         } else {
@@ -506,6 +540,25 @@ function AdminNewsSiteView() {
               {scrapedAndProcessedData && (
                 <div className="mt-6 space-y-4 border-t pt-4">
                   {scrapedAndProcessedData.error && <p className="text-sm text-destructive p-2 border border-destructive bg-destructive/10 rounded-md">{scrapedAndProcessedData.error}</p>}
+                  
+                  {scrapedAndProcessedData.extractedImageUrl && !scrapedAndProcessedData.error && (
+                    <div>
+                      <Label className="font-semibold">Immagine Estratta:</Label>
+                      <div className="mt-1 p-2 border rounded-md bg-muted">
+                        <Image 
+                          src={scrapedAndProcessedData.extractedImageUrl} 
+                          alt="Immagine estratta" 
+                          width={200} 
+                          height={120} 
+                          className="object-contain rounded-md mx-auto"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1 truncate" title={scrapedAndProcessedData.extractedImageUrl}>
+                          {scrapedAndProcessedData.extractedImageUrl}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center">
                     <Label className="font-semibold">Titolo Elaborato:</Label>
                     {scrapedAndProcessedData.processedTitle && !scrapedAndProcessedData.error && (
@@ -659,7 +712,7 @@ function AdminNewsSiteView() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="originalPostTitle">Titolo Articolo</Label>
+                <Label htmlFor="originalPostTitle">Titolo Articolo (Originale o per Revisione)</Label>
                 <Input 
                   id="originalPostTitle" 
                   value={originalPostTitle} 
@@ -675,6 +728,27 @@ function AdminNewsSiteView() {
                   value={postCategory} 
                   onChange={(e) => setPostCategory(e.target.value)} 
                   placeholder="Es: Novità Auto, Guide, Recensioni" 
+                  disabled={isProcessingPostManual}
+                />
+              </div>
+              <div>
+                <Label htmlFor="originalPostImageUrl">URL Immagine (Opzionale)</Label>
+                <Input 
+                  id="originalPostImageUrl" 
+                  type="url"
+                  value={originalPostImageUrl} 
+                  onChange={(e) => setOriginalPostImageUrl(e.target.value)} 
+                  placeholder="https://esempio.com/immagine.jpg" 
+                  disabled={isProcessingPostManual}
+                />
+              </div>
+               <div>
+                <Label htmlFor="originalPostImageHint">Suggerimento Immagine (per AI, opzionale)</Label>
+                <Input 
+                  id="originalPostImageHint" 
+                  value={originalPostImageHint} 
+                  onChange={(e) => setOriginalPostImageHint(e.target.value)} 
+                  placeholder="Es: auto sportiva rossa" 
                   disabled={isProcessingPostManual}
                 />
               </div>
@@ -829,3 +903,4 @@ export default function HomePage() {
     </div>
   );
 }
+

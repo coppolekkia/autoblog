@@ -25,7 +25,7 @@ const ScrapeUrlAndProcessContentInputSchema = z.object({
 });
 export type ScrapeUrlAndProcessContentInput = z.infer<typeof ScrapeUrlAndProcessContentInputSchema>;
 
-// Schema for output (extends ProcessBlogPostOutput and adds original URL)
+// Schema for output (extends ProcessBlogPostOutput and adds original URL and image)
 const ScrapedAndProcessedArticleDataSchema = z.object({
   processedTitle: z.string().describe('Il titolo del post ottimizzato per SEO.'),
   processedContent: z
@@ -38,6 +38,7 @@ const ScrapedAndProcessedArticleDataSchema = z.object({
     .array(z.string())
     .describe('Un elenco di 3-5 parole chiave SEO rilevanti.'),
   originalUrlScraped: z.string().url().describe("L'URL originale da cui è stato estratto il contenuto."),
+  extractedImageUrl: z.string().url().optional().describe("L'URL dell'immagine principale estratta dalla pagina."),
   error: z.string().optional().describe("Messaggio di errore se l'estrazione o l'elaborazione fallisce.")
 });
 export type ScrapedAndProcessedArticleData = z.infer<typeof ScrapedAndProcessedArticleDataSchema>;
@@ -58,74 +59,79 @@ const scrapeUrlAndProcessContentFlow = ai.defineFlow(
   async ({ url, category }) => {
     let extractedTitle = '';
     let extractedBody = '';
+    let extractedImageUrl: string | undefined = undefined;
+    const basePageUrl = new URL(url);
 
     try {
-      // Use a public proxy to try and circumvent blocking
       const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
       
       const { data: htmlContent } = await axios.get(proxyUrl, {
         headers: { 
-            // User-Agent might be less critical when going through a proxy, but kept for completeness
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         },
-        timeout: 15000 // Add a timeout of 15 seconds as proxies can be slow
+        timeout: 15000 
       });
       const $ = cheerio.load(htmlContent);
 
       // Extract title
       extractedTitle = $('title').first().text().trim();
-      if (!extractedTitle) {
-         // Fallback: try to get from h1
-        extractedTitle = $('h1').first().text().trim();
+      if (!extractedTitle) extractedTitle = $('h1').first().text().trim();
+      if (!extractedTitle) extractedTitle = $('meta[property="og:title"]').attr('content')?.trim() || '';
+      if (!extractedTitle) extractedTitle = $('meta[name="twitter:title"]').attr('content')?.trim() || '';
+      
+      // Extract Image URL
+      let imageUrl = $('meta[property="og:image"]').attr('content');
+      if (!imageUrl) imageUrl = $('meta[name="twitter:image"]').attr('content');
+      
+      // Fallback to first image in article if meta tags are missing
+      if (!imageUrl) {
+        const mainContentSelectors = 'article, main, .content, .entry-content, .post-content, .article-body, #content, #main, #article';
+        const $mainContent = $(mainContentSelectors).first();
+        if ($mainContent.length) {
+            imageUrl = $mainContent.find('img').first().attr('src');
+        } else {
+            // Fallback: first image in body if no specific content area found
+            imageUrl = $('body').find('img').first().attr('src');
+        }
       }
-      if (!extractedTitle) {
-        // Fallback: try to get from meta og:title
-        extractedTitle = $('meta[property="og:title"]').attr('content')?.trim() || '';
-      }
-       if (!extractedTitle) {
-        // Fallback: try to get from meta twitter:title
-        extractedTitle = $('meta[name="twitter:title"]').attr('content')?.trim() || '';
+
+      if (imageUrl) {
+        try {
+          // Ensure URL is absolute
+          const absoluteImageUrl = new URL(imageUrl, basePageUrl.origin);
+          extractedImageUrl = absoluteImageUrl.href;
+        } catch (e) {
+          // If imageUrl is not a valid relative or absolute path, it might be a data URI or malformed.
+          // We'll try to use it as is if it looks like a URL.
+          if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://') || imageUrl.startsWith('data:image')) {
+            extractedImageUrl = imageUrl;
+          } else {
+             console.warn(`Could not form absolute URL for image: ${imageUrl} on page ${url}`);
+          }
+        }
       }
 
 
-      // Extract main content - this is a very basic approach and can be improved
       // Remove script and style tags first to clean up
       $('script, style, noscript, iframe, header, footer, nav, aside, form, img, svg, video, audio, link[rel="stylesheet"], link[rel="icon"], link[rel="shortcut icon"]').remove();
       
-      // Try common article containers
       let mainContentElement = $('article').first();
-      if (!mainContentElement.length) {
-        mainContentElement = $('main').first();
-      }
-      if (!mainContentElement.length) {
-        // More specific content selectors
-        mainContentElement = $('.content, .entry-content, .post-content, .article-body, #content, #main, #article').first();
-      }
-      if (!mainContentElement.length) {
-        // Fallback to body if specific tags are not found
-        mainContentElement = $('body'); 
-      }
+      if (!mainContentElement.length) mainContentElement = $('main').first();
+      if (!mainContentElement.length) mainContentElement = $('.content, .entry-content, .post-content, .article-body, #content, #main, #article').first();
+      if (!mainContentElement.length) mainContentElement = $('body'); 
       
-      // Get text, trying to preserve some structure by joining paragraphs
-      extractedBody = mainContentElement.find('p, div, span, li, h2, h3, h4, td') // Added more potential text holding elements
-        .map((i, el) => {
-            let text = $(el).text().trim();
-            // Replace multiple newlines/spaces with a single space or newline for paragraphs
-            text = text.replace(/\s\s+/g, ' '); 
-            return text;
-        })
+      extractedBody = mainContentElement.find('p, div, span, li, h2, h3, h4, td')
+        .map((i, el) => $(el).text().trim().replace(/\s\s+/g, ' '))
         .get()
-        .filter(text => text.length > 20) // Filter out very short/irrelevant text blocks
-        .join('\n\n'); // Join paragraphs with double newlines
+        .filter(text => text.length > 20) 
+        .join('\n\n'); 
 
       if (!extractedBody || extractedBody.length < MIN_CONTENT_LENGTH / 2) { 
         extractedBody = mainContentElement.text().replace(/\s\s+/g, ' ').trim(); 
       }
 
-
-      if (!extractedTitle) {
-        extractedTitle = `Contenuto da ${new URL(url).hostname}`;
-      }
+      if (!extractedTitle) extractedTitle = `Contenuto da ${basePageUrl.hostname}`;
+      
       if (!extractedBody || extractedBody.length < MIN_CONTENT_LENGTH) {
         console.warn(`Contenuto estratto da ${url} (via proxy) troppo breve o mancante. Lunghezza: ${extractedBody.length}`);
         return { 
@@ -134,6 +140,7 @@ const scrapeUrlAndProcessContentFlow = ai.defineFlow(
             metaDescription: '',
             seoKeywords: [],
             originalUrlScraped: url,
+            extractedImageUrl,
             error: `Impossibile estrarre contenuto testuale significativo da ${url} (via proxy). Assicurati che la pagina abbia testo leggibile e non sia protetta dinamicamente o che il proxy funzioni.`
         };
       }
@@ -152,11 +159,11 @@ const scrapeUrlAndProcessContentFlow = ai.defineFlow(
         metaDescription: '',
         seoKeywords: [],
         originalUrlScraped: url,
+        extractedImageUrl: undefined,
         error: `Errore durante lo scraping dell'URL ${url} (via proxy): ${errorMessage}`
       };
     }
 
-    // Now, process the extracted content with AI
     try {
       const processInput: ProcessBlogPostInput = {
         originalTitle: extractedTitle,
@@ -169,16 +176,18 @@ const scrapeUrlAndProcessContentFlow = ai.defineFlow(
       return {
         ...processedResult,
         originalUrlScraped: url,
+        extractedImageUrl,
       };
 
     } catch (e: any) {
       console.error(`Errore durante l'elaborazione AI del contenuto estratto da ${url}:`, e);
       return { 
         processedTitle: extractedTitle, 
-        processedContent: extractedBody,
+        processedContent: extractedBody, // Return scraped content even if AI fails
         metaDescription: '',
         seoKeywords: [],
         originalUrlScraped: url,
+        extractedImageUrl,
         error: `Contenuto estratto (via proxy), ma l'elaborazione AI è fallita: ${e.message}` 
       };
     }

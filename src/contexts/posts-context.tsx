@@ -4,11 +4,12 @@
 import type { ReactNode } from "react";
 import React, { createContext, useContext, useState, useEffect } from "react";
 import type { Post } from "@/types/blog";
-import { placeholderPosts as initialPosts } from "@/types/blog"; // Import initial posts
+import { placeholderPosts as initialPosts } from "@/types/blog"; 
+import { slugify } from "@/lib/utils"; // Import slugify
 
 interface PostsContextType {
   posts: Post[];
-  addPost: (post: Omit<Post, "id" | "slug" | "date" | "upvotes" | "commentsCount" | "author"> & { category: string }) => void;
+  addPost: (postData: Omit<Post, "id" | "slug" | "date" | "upvotes" | "commentsCount" | "author"> & { category: string; imageUrl?: string; imageHint?: string }) => void;
   getPostBySlug: (slug: string) => Post | undefined;
 }
 
@@ -28,7 +29,7 @@ export function PostsProvider({ children }: { children: ReactNode }) {
       const savedPosts = localStorage.getItem("blogPosts");
       return savedPosts ? JSON.parse(savedPosts) : initialPosts;
     }
-    return initialPosts; // For SSR or initial state before client mounts
+    return initialPosts; 
   });
   const [isMounted, setIsMounted] = useState(false);
 
@@ -36,9 +37,20 @@ export function PostsProvider({ children }: { children: ReactNode }) {
     setIsMounted(true);
     const savedPosts = localStorage.getItem("blogPosts");
     if (savedPosts) {
-      setPosts(JSON.parse(savedPosts));
+      try {
+        const parsedPosts = JSON.parse(savedPosts);
+        // Basic validation to ensure it's an array
+        if (Array.isArray(parsedPosts)) {
+            setPosts(parsedPosts);
+        } else {
+            setPosts(initialPosts);
+        }
+      } catch (e) {
+        console.error("Error parsing posts from localStorage", e);
+        setPosts(initialPosts);
+      }
     } else {
-      setPosts(initialPosts); // Ensure initialPosts are set if nothing in localStorage
+      setPosts(initialPosts); 
     }
   }, []);
 
@@ -48,41 +60,32 @@ export function PostsProvider({ children }: { children: ReactNode }) {
     }
   }, [posts, isMounted]);
 
-  const slugify = (text: string): string => {
-    return text
-      .toString()
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, "-") // Replace spaces with -
-      .replace(/[^\w-]+/g, "") // Remove all non-word chars
-      .replace(/--+/g, "-"); // Replace multiple - with single -
-  };
 
-  const addPost = (newPostData: Omit<Post, "id" | "slug" | "date" | "upvotes" | "commentsCount" | "author"> & { category: string }) => {
+  const addPost = (newPostData: Omit<Post, "id" | "slug" | "date" | "upvotes" | "commentsCount" | "author"> & { category: string; imageUrl?: string; imageHint?: string }) => {
+    
+    let uniqueSlug = slugify(newPostData.title);
+    let counter = 1;
+    // Ensure slug is unique
+    while (posts.some(p => p.slug === uniqueSlug)) {
+      uniqueSlug = `${slugify(newPostData.title)}-${counter}`;
+      counter++;
+    }
+    
     const newPost: Post = {
       ...newPostData,
-      id: Date.now().toString(), // Simple unique ID
-      slug: slugify(newPostData.title),
+      id: Date.now().toString(), 
+      slug: uniqueSlug,
       date: new Date().toLocaleDateString("it-IT", {
         year: "numeric",
         month: "long",
         day: "numeric",
       }),
-      author: "Admin", // Or derive from logged-in user if available
-      upvotes: 0,
-      commentsCount: 0,
+      author: "Admin", 
+      upvotes: Math.floor(Math.random() * 100), // Random upvotes for demo
+      commentsCount: Math.floor(Math.random() * 20), // Random comments for demo
       imageUrl: newPostData.imageUrl || `https://placehold.co/700x400.png?text=${encodeURIComponent(newPostData.title)}`,
-      imageHint: newPostData.imageHint || "blog post image",
+      imageHint: newPostData.imageHint || newPostData.title.split(' ').slice(0,2).join(' ') || "immagine blog", // Use title words as hint if not provided
     };
-
-    // Check for duplicate slugs
-    let finalSlug = newPost.slug;
-    let counter = 1;
-    while (posts.some(p => p.slug === finalSlug)) {
-      finalSlug = `${newPost.slug}-${counter}`;
-      counter++;
-    }
-    newPost.slug = finalSlug;
 
     setPosts((prevPosts) => [newPost, ...prevPosts]);
   };
