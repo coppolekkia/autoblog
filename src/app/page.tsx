@@ -8,19 +8,22 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge'; // Aggiunto Badge
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, Image as ImageIcon } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context"; 
-import { usePosts } from "@/contexts/posts-context"; // Import usePosts
+import { usePosts } from "@/contexts/posts-context"; 
 import { processBlogPost, type ProcessBlogPostInput, type ProcessBlogPostOutput } from "@/ai/flows/process-blog-post";
 import { syndicateAndProcessContent, type SyndicateAndProcessContentInput, type SyndicateAndProcessContentOutput, type ProcessedArticleData as FeedProcessedArticleData } from "@/ai/flows/syndicate-and-process-content";
 import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type ScrapedAndProcessedArticleData } from "@/ai/flows/scrapeUrlAndProcessContent";
 import { useToast } from "@/hooks/use-toast";
-import type { Post } from '@/types/blog'; // Import Post type
+import type { Post } from '@/types/blog'; 
 
+// !! IMPORTANTE !! Replicato da src/app/login/page.tsx e src/app/(app)/page.tsx
+// Dovrebbe essere centralizzato se possibile in futuro.
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
 
 function BlogFeedView() {
@@ -43,15 +46,29 @@ function BlogFeedView() {
         title="Feed Principale"
         description="Esplora gli ultimi articoli e discussioni."
       />
-      <section className="max-w-3xl mx-auto">
+      <section className="max-w-4xl mx-auto space-y-8"> {/* Allargato e aggiunto space-y */}
         {posts.map((post) => (
-          <Card key={post.id} className="mb-6 overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 bg-card">
-            <div className="p-5">
-              <div className="flex items-center text-xs text-muted-foreground mb-2">
+          <Card key={post.id} className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 bg-card flex flex-col">
+            {post.imageUrl && (
+              <Link href={`/blog/${post.slug}`} aria-label={`Leggi di più su ${post.title}`} className="block overflow-hidden">
+                <Image
+                  src={post.imageUrl}
+                  alt={post.title}
+                  width={800} 
+                  height={450} 
+                  className="w-full h-auto object-cover transition-transform duration-300 ease-in-out hover:scale-105"
+                  data-ai-hint={post.imageHint || "blog image"}
+                />
+              </Link>
+            )}
+            <div className="p-6 flex-grow flex flex-col"> {/* Aumentato padding */}
+              <div className="flex items-center text-xs text-muted-foreground mb-3">
                 {post.category && (
-                  <Link href={`/category/${post.category.toLowerCase()}`} className="font-semibold text-primary hover:underline mr-2">
-                    r/{post.category}
-                  </Link>
+                  <Badge variant="secondary" className="mr-2"> 
+                    <Link href={`/category/${post.category.toLowerCase()}`} className="hover:underline">
+                      {post.category}
+                    </Link>
+                  </Badge>
                 )}
                 <span>Pubblicato da </span>
                 <Link href={`/user/${post.author.toLowerCase().replace(' ','-')}`} className="font-medium hover:underline ml-1 mr-1">
@@ -60,43 +77,30 @@ function BlogFeedView() {
                 <span>• {post.date}</span>
               </div>
 
-              <CardTitle className="text-xl mb-3">
+              <CardTitle className="text-2xl font-semibold mb-3"> {/* Aumentata dimensione e aggiunto font-semibold */}
                 <Link href={`/blog/${post.slug}`} className="hover:text-primary transition-colors">
                   {post.title}
                 </Link>
               </CardTitle>
-
-              {post.imageUrl && (
-                <Link href={`/blog/${post.slug}`} aria-label={`Leggi di più su ${post.title}`} className="block mb-4 rounded-lg overflow-hidden">
-                  <Image
-                    src={post.imageUrl}
-                    alt={post.title}
-                    width={700}
-                    height={400}
-                    className="w-full h-auto object-cover transition-transform duration-300 ease-in-out hover:scale-105"
-                    data-ai-hint={post.imageHint || "blog image"}
-                  />
-                </Link>
-              )}
               
-              <p className="text-sm text-foreground/90 mb-4 line-clamp-3">{post.excerpt}</p>
+              <p className="text-base text-foreground/80 mb-6 line-clamp-4 flex-grow">{post.excerpt}</p> {/* Aumentato a text-base e line-clamp-4, text-foreground/80 */}
 
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center space-x-2">
+              <div className="flex items-center justify-between text-sm mt-auto pt-4 border-t border-border/50"> {/* Aggiunto border-t */}
+                <div className="flex items-center space-x-3">
                   <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary px-2">
-                    <ThumbsUp className="mr-1 h-4 w-4" />
+                    <ThumbsUp className="mr-1.5 h-4 w-4" />
                     <span>{post.upvotes}</span>
                   </Button>
                   <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
                     <Link href={`/blog/${post.slug}#comments`}>
-                      <MessageSquare className="mr-1 h-4 w-4" />
+                      <MessageSquare className="mr-1.5 h-4 w-4" />
                       <span>{post.commentsCount} Commenti</span>
                     </Link>
                   </Button>
                 </div>
-                <Button asChild variant="outline" size="sm">
+                <Button asChild variant="default" size="sm"> {/* Cambiato a variant="default" */}
                   <Link href={`/blog/${post.slug}`}>
-                    Leggi e Commenta <ArrowRight className="ml-2 h-4 w-4" />
+                    Leggi di più <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
               </div>
@@ -258,8 +262,8 @@ function AdminNewsSiteView() {
       content: processedPostDataManual.processedContent,
       excerpt: processedPostDataManual.metaDescription, 
       category: postCategory, 
-      imageUrl: originalPostImageUrl || undefined, // Use image URL from state
-      imageHint: originalPostImageHint || undefined, // Use image hint from state
+      imageUrl: originalPostImageUrl || undefined, 
+      imageHint: originalPostImageHint || undefined, 
     });
 
     toast({ title: "Post Pubblicato!", description: `"${processedPostDataManual.processedTitle}" è stato aggiunto al blog.` });
@@ -268,7 +272,6 @@ function AdminNewsSiteView() {
     setOriginalPostContent("");
     setOriginalPostImageUrl("");
     setOriginalPostImageHint("");
-    // setPostCategory(""); // Keep category for next post potentially
     setProcessedPostDataManual(null);
   };
 
@@ -323,24 +326,23 @@ function AdminNewsSiteView() {
     article: FeedProcessedArticleData | ScrapedAndProcessedArticleData, 
     categoryToUse: string
   ) => {
-    // Determine the source of the title and image
-    let titleForEditor = article.processedTitle; // Default to processed title
+    let titleForEditor = article.processedTitle; 
     let imageUrlForEditor = "";
+    let imageHintForEditor = "";
     
-    if ('originalTitleFromFeed' in article) { // It's a FeedProcessedArticleData
+    if ('originalTitleFromFeed' in article) { 
         titleForEditor = article.originalTitleFromFeed || article.processedTitle;
-        // Note: Feed items don't have 'extractedImageUrl' in their current type.
-        // If feeds provide images, this needs to be handled in fetchFeedItems and SyndicateAndProcessContent
-        // For now, we assume feed items might have `article.originalLink` and not a direct image URL in `ProcessedArticleData` type.
-    } else if ('extractedImageUrl' in article) { // It's a ScrapedAndProcessedArticleData
-        titleForEditor = article.originalUrlScraped; // Or some other indicator of origin
-        imageUrlForEditor = article.extractedImageUrl || "";
+    } else if ('extractedImageUrl' in article) { 
+        titleForEditor = (article as ScrapedAndProcessedArticleData).originalUrlScraped; // Use original URL as "title" for editor in this case
+        imageUrlForEditor = (article as ScrapedAndProcessedArticleData).extractedImageUrl || "";
+        // Attempt to create a hint from the scraped title for the image
+        imageHintForEditor = article.processedTitle.split(' ').slice(0,2).join(' ') || "immagine articolo";
     }
     
     setOriginalPostTitle(titleForEditor); 
     setOriginalPostContent(article.processedContent);
     setOriginalPostImageUrl(imageUrlForEditor);
-    setOriginalPostImageHint(""); // Reset or derive hint if possible
+    setOriginalPostImageHint(imageHintForEditor); 
     setPostCategory(categoryToUse); 
     
     setProcessedPostDataManual({
@@ -541,27 +543,27 @@ function AdminNewsSiteView() {
                 <div className="mt-6 space-y-4 border-t pt-4">
                   {scrapedAndProcessedData.error && <p className="text-sm text-destructive p-2 border border-destructive bg-destructive/10 rounded-md">{scrapedAndProcessedData.error}</p>}
                   
-                  {scrapedAndProcessedData.extractedImageUrl && !scrapedAndProcessedData.error && (
+                  {scrapedAndProcessedData.extractedImageUrl && (!scrapedAndProcessedData.error || (scrapedAndProcessedData.error && scrapedAndProcessedData.processedContent)) && ( // Show image even if there's an error but content exists
                     <div>
                       <Label className="font-semibold">Immagine Estratta:</Label>
-                      <div className="mt-1 p-2 border rounded-md bg-muted">
+                      <div className="mt-1 p-2 border rounded-md bg-muted flex justify-center">
                         <Image 
                           src={scrapedAndProcessedData.extractedImageUrl} 
                           alt="Immagine estratta" 
                           width={200} 
                           height={120} 
-                          className="object-contain rounded-md mx-auto"
+                          className="object-contain rounded-md max-h-[120px]" // Added max-h
                         />
-                        <p className="text-xs text-muted-foreground mt-1 truncate" title={scrapedAndProcessedData.extractedImageUrl}>
+                      </div>
+                       <p className="text-xs text-muted-foreground mt-1 truncate text-center" title={scrapedAndProcessedData.extractedImageUrl}>
                           {scrapedAndProcessedData.extractedImageUrl}
                         </p>
-                      </div>
                     </div>
                   )}
 
                   <div className="flex justify-between items-center">
                     <Label className="font-semibold">Titolo Elaborato:</Label>
-                    {scrapedAndProcessedData.processedTitle && !scrapedAndProcessedData.error && (
+                    {scrapedAndProcessedData.processedTitle && (!scrapedAndProcessedData.error || scrapedAndProcessedData.processedContent) && (
                        <Button 
                           variant="outline" 
                           size="sm"
@@ -881,7 +883,6 @@ export default function HomePage() {
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                {/* Registrati rimosso */}
               </>
             )}
           </nav>
