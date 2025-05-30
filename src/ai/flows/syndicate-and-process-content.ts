@@ -17,7 +17,6 @@ import {
   processBlogPost, 
   type ProcessBlogPostInput, 
   type ProcessBlogPostOutput 
-  // ProcessBlogPostOutputSchema is no longer imported as a value
 } from './process-blog-post';
 
 // Schema reso interno
@@ -57,6 +56,8 @@ export async function syndicateAndProcessContent(input: SyndicateAndProcessConte
   return syndicateAndProcessContentFlow(input);
 }
 
+const ITEMS_TO_PROCESS_LIMIT = 2; // Limite per testare su piani con rate limit bassi
+
 const syndicateAndProcessContentFlow = ai.defineFlow(
   {
     name: 'syndicateAndProcessContentFlow',
@@ -79,8 +80,14 @@ const syndicateAndProcessContentFlow = ai.defineFlow(
         return { processedArticles, errors: [{error: "Nessun articolo trovato nel feed."}] };
     }
 
-    // 2. Process each item
-    for (const item of rawFeedResult.items) {
+    // 2. Process a limited number of items to avoid rate limits on free tiers
+    const itemsToProcess = rawFeedResult.items.slice(0, ITEMS_TO_PROCESS_LIMIT);
+    if (rawFeedResult.items.length > ITEMS_TO_PROCESS_LIMIT) {
+        processingErrors.push({error: `Nota: Sono stati elaborati solo i primi ${ITEMS_TO_PROCESS_LIMIT} articoli del feed per evitare di superare i limiti di frequenza dell'API. Rimuovere o aumentare ITEMS_TO_PROCESS_LIMIT in syndicate-and-process-content.ts per elaborare più articoli.`})
+    }
+
+
+    for (const item of itemsToProcess) {
       if (!item.title || !item.content) {
         processingErrors.push({ originalTitle: item.title, error: "Titolo o contenuto mancante per l'articolo del feed." });
         continue;
@@ -92,10 +99,9 @@ const syndicateAndProcessContentFlow = ai.defineFlow(
           originalContent: item.content, 
           category: defaultCategory,
         };
-        // Chiamata a processBlogPost che restituisce ProcessBlogPostOutput
+        
         const processedResult: ProcessBlogPostOutput = await processBlogPost(processInput);
         
-        // Mappatura manuale da ProcessBlogPostOutput a ProcessedArticleData
         processedArticles.push({
           processedTitle: processedResult.processedTitle,
           processedContent: processedResult.processedContent,
