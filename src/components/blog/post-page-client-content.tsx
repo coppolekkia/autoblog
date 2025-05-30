@@ -35,7 +35,6 @@ interface Banner {
   contentHTML: string;
   placement: 'underTitle' | 'afterContent' | 'popup';
   isActive: boolean;
-  // Aggiungiamo createdAt per l'ordinamento, anche se non lo visualizziamo direttamente qui
   createdAt?: Timestamp;
 }
 
@@ -43,7 +42,7 @@ async function fetchActiveBanners(): Promise<Banner[]> {
   console.log('[PostPageClientContent] Attempting to fetch active banners...');
   try {
     const bannersRef = collection(db, "banners");
-    const q = query(bannersRef, where("isActive", "==", true), orderBy("createdAt", "desc"));
+    const q = query(bannersRef, where("isActive", "==", true), orderBy("createdAt", "desc")); // Added orderBy for consistency if needed
     const querySnapshot = await getDocs(q);
     const activeBanners: Banner[] = [];
     querySnapshot.forEach((doc) => {
@@ -53,7 +52,7 @@ async function fetchActiveBanners(): Promise<Banner[]> {
     return activeBanners;
   } catch (error) {
     console.error("[PostPageClientContent] Error fetching active banners:", error);
-    throw error; // Rilancia l'errore per react-query
+    throw error; 
   }
 }
 
@@ -68,9 +67,9 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   const { toast } = useToast();
 
   const { data: activeBanners = [], isLoading: isLoadingBanners, isError: isErrorBanners, error: bannersError } = useQuery<Banner[], Error>({
-    queryKey: ['activeBanners'],
+    queryKey: ['activeBanners', slug], // Add slug to queryKey if banners could be post-specific
     queryFn: fetchActiveBanners,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000, 
   });
 
   const [showPopupBanner, setShowPopupBanner] = useState(false);
@@ -79,7 +78,20 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   useEffect(() => {
     const foundPost = getPostBySlug(slug);
     setPost(foundPost || null);
+    if (!foundPost && !posts.length) { // If posts haven't loaded yet, don't immediately 404
+        console.log("Post not found initially, posts array might be empty or loading.");
+    } else if (!foundPost && posts.length > 0) {
+        console.log(`Post with slug "${slug}" not found in PostsContext.`);
+        // notFound(); // Delay calling notFound until posts are confirmed loaded and post is still not found
+    }
   }, [slug, getPostBySlug, posts]);
+
+  // Effect to call notFound if post is definitively not found after posts have loaded
+  useEffect(() => {
+    if (posts.length > 0 && post === null) {
+        notFound();
+    }
+  }, [post, posts]);
 
 
   useEffect(() => {
@@ -102,20 +114,21 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
       const popupBanner = activeBanners.find(b => b.placement === 'popup');
       if (popupBanner) {
         console.log('[PostPageClientContent] Popup banner found:', popupBanner.name);
-        const popupShown = sessionStorage.getItem(`popupShown_${popupBanner.id}`);
+        const popupShownKey = `popupShown_${popupBanner.id}_${slug}`; // Make session storage key post-specific
+        const popupShown = sessionStorage.getItem(popupShownKey);
         if (!popupShown) {
           console.log('[PostPageClientContent] Showing popup banner:', popupBanner.name);
           setPopupBannerContent(popupBanner.contentHTML);
           setShowPopupBanner(true);
-          sessionStorage.setItem(`popupShown_${popupBanner.id}`, 'true');
+          sessionStorage.setItem(popupShownKey, 'true');
         } else {
-          console.log('[PostPageClientContent] Popup banner already shown this session:', popupBanner.name);
+          console.log('[PostPageClientContent] Popup banner already shown this session for this post:', popupBanner.name);
         }
       } else {
         console.log('[PostPageClientContent] No active popup banner found.');
       }
     }
-  }, [activeBanners, isLoadingBanners, isErrorBanners, bannersError]);
+  }, [activeBanners, isLoadingBanners, isErrorBanners, bannersError, slug]);
 
 
   const isAdmin = !authLoading && currentUser?.email === adminEmail;
@@ -153,17 +166,17 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     if (!post || posts.length <= 1) {
       return [];
     }
+    // Simple logic: filter out current post, take first N. Could be more sophisticated.
     return posts
       .filter(p => p.id !== post.id)
-      // Potremmo aggiungere una logica di correlazione più sofisticata qui (es. per categoria)
       .slice(0, MAX_RELATED_POSTS);
   }, [post, posts]);
 
   const underTitleBanner = useMemo(() => activeBanners.find(b => b.placement === 'underTitle'), [activeBanners]);
-  const afterContentBanner = useMemo(() => activeBanners.find(b => b.placement === 'afterContent'), [activeBanners]);
+  const afterContentBannerData = useMemo(() => activeBanners.find(b => b.placement === 'afterContent'), [activeBanners]);
 
 
-  if (authLoading || post === undefined) { // Ancora in caricamento post o auth
+  if (authLoading || post === undefined) { 
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -171,10 +184,60 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     );
   }
 
-  if (!post) { // Post non trovato dopo il caricamento
-    notFound();
-    return null;
+  // If posts have loaded and post is still not found (is null), trigger 404.
+  // This check is now more robust due to the useEffect handling notFound.
+  if (!post) {
+     // It's possible this component renders before notFound() in useEffect takes effect.
+     // Render minimal or a loader again to let useEffect handle the notFound call.
+     return (
+        <div className="flex min-h-screen w-full items-center justify-center bg-background">
+          <Loader2 className="h-16 w-16 animate-spin text-primary" />
+          <p className="ml-2">Caricamento post...</p>
+        </div>
+      );
   }
+
+  const renderContentWithInArticleBanner = () => {
+    if (!post.content) return null;
+
+    const paragraphs = post.content.split(/\n\s*\n/); // Split by one or more newlines (double newlines)
+    const bannerInsertionPoint = paragraphs.length > 1 ? 1 : 0; // Insert after 1st paragraph, or at start if only one
+
+    return (
+      <>
+        {paragraphs.slice(0, bannerInsertionPoint).map((p, i) => (
+          <p key={`pre-banner-p-${i}`} className="whitespace-pre-wrap">{p}</p>
+        ))}
+        
+        {afterContentBannerData && bannerInsertionPoint < paragraphs.length && (
+          <div 
+            className="my-6 p-4 border rounded-md shadow-sm bg-card" // Consistent styling
+            dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }} 
+          />
+        )}
+        
+        {paragraphs.slice(bannerInsertionPoint).map((p, i) => (
+          <p key={`post-banner-p-${i}`} className="whitespace-pre-wrap">{p}</p>
+        ))}
+        
+        {/* If banner was meant to be at the very end and there was only one paragraph initially */}
+        {afterContentBannerData && bannerInsertionPoint === paragraphs.length && paragraphs.length > 0 && (
+           <div 
+            className="my-6 p-4 border rounded-md shadow-sm bg-card" // Consistent styling
+            dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }} 
+          />
+        )}
+         {/* If content is empty and banner should show */}
+        {afterContentBannerData && paragraphs.length === 0 && (
+           <div 
+            className="my-6 p-4 border rounded-md shadow-sm bg-card" // Consistent styling
+            dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }} 
+          />
+        )}
+      </>
+    );
+  };
+
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/40">
@@ -193,7 +256,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                   </span>
                 )}
                 <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
-                {!isAdmin && (
+                {!isAdmin && ( // Only show dashboard link if user is NOT admin
                   <Button variant="outline" size="sm" asChild>
                     <Link href="/dashboard">Dashboard</Link>
                   </Button>
@@ -206,8 +269,6 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                     const { auth } = await import('@/lib/firebase');
                     try {
                       await firebaseSignOut(auth);
-                      // Consider re-fetching banners or posts if they depend on auth state for visibility,
-                      // though activeBanners query should be independent of auth state for public reads.
                     } catch (error) {
                       console.error("Errore logout dall'header del post:", error);
                     }
@@ -241,7 +302,6 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
         <article className="max-w-3xl mx-auto">
           <PageHeader title={post.title} />
 
-          {/* Under Title Banner */}
           {underTitleBanner && (
             <div 
               className="my-6 p-4 border rounded-md shadow-sm bg-card"
@@ -265,24 +325,15 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                 height={400}
                 className="w-full h-auto object-cover"
                 data-ai-hint={post.imageHint || "blog image"}
-                priority // Immagine principale del post, importante per LCP
+                priority 
               />
             </div>
           )}
 
           <div className="prose prose-lg dark:prose-invert max-w-none mb-8 bg-card p-6 rounded-lg shadow-md">
-            <p className="whitespace-pre-wrap">{post.content}</p>
+            {afterContentBannerData ? renderContentWithInArticleBanner() : <p className="whitespace-pre-wrap">{post.content}</p>}
           </div>
-
-          {/* After Content Banner */}
-          {afterContentBanner && (
-            <div 
-              className="my-8 p-4 border rounded-md shadow-sm bg-card"
-              dangerouslySetInnerHTML={{ __html: afterContentBanner.contentHTML }}
-            />
-          )}
           
-          {/* Sezione Iscrizione Newsletter */}
           <Card className="mt-12 shadow-lg">
             <CardHeader>
               <CardTitle className="text-2xl flex items-center">
@@ -314,7 +365,6 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
             </CardContent>
           </Card>
 
-          {/* Articoli Correlati */}
           {relatedPosts.length > 0 && (
             <Card className="mt-8 shadow-lg">
               <CardHeader>
@@ -354,16 +404,14 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
           )}
         </article>
 
-        {/* Popup Banner */}
         {popupBannerContent && (
           <AlertDialog open={showPopupBanner} onOpenChange={setShowPopupBanner}>
             <AlertDialogContent className="max-w-md">
               <AlertDialogHeader>
-                {/* Non serve un titolo esplicito se il contenuto del banner è auto-esplicativo */}
                 <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="absolute top-2 right-2 h-6 w-6 z-10" // Aggiunto z-10 per essere sopra
+                    className="absolute top-2 right-2 h-6 w-6 z-10" 
                     onClick={() => setShowPopupBanner(false)}
                     aria-label="Chiudi popup"
                 >
@@ -371,11 +419,9 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                     <span className="sr-only">Chiudi</span>
                 </Button>
               </AlertDialogHeader>
-              {/* AlertDialogDescription è usato per il contenuto principale qui */}
               <AlertDialogDescription asChild> 
                 <div dangerouslySetInnerHTML={{ __html: popupBannerContent }} />
               </AlertDialogDescription>
-              {/* Rimosso il footer con il pulsante di chiusura duplicato se la X è sufficiente */}
             </AlertDialogContent>
           </AlertDialog>
         )}
