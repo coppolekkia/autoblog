@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState, useMemo } from 'react'; // Added useMemo
+import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context";
 import { usePosts } from "@/contexts/posts-context"; 
@@ -13,9 +13,12 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/shared/page-header';
-import { ArrowLeft, ThumbsUp, MessageSquare, Loader2, Shield, Mail, Megaphone, Newspaper } from 'lucide-react'; // Added Newspaper
+import { ArrowLeft, ThumbsUp, MessageSquare, Loader2, Shield, Mail, Megaphone, Newspaper } from 'lucide-react';
 import type { Post } from '@/types/blog';
 import { notFound } from 'next/navigation'; 
+import { useToast } from '@/hooks/use-toast'; // Import useToast
+import { db } from '@/lib/firebase'; // Import db
+import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'; // Import firestore functions
 
 interface PostPageClientContentProps {
   slug: string; 
@@ -30,11 +33,13 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   const { posts, getPostBySlug } = usePosts(); 
   const [post, setPost] = useState<Post | undefined | null>(undefined); 
   const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const foundPost = getPostBySlug(slug);
     setPost(foundPost || null); 
-  }, [slug, getPostBySlug, posts]); // Added posts to dependency array to re-evaluate if posts change
+  }, [slug, getPostBySlug, posts]);
 
 
   useEffect(() => {
@@ -47,11 +52,33 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
 
   const isAdmin = !authLoading && currentUser?.email === adminEmail;
 
-  const handleNewsletterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleNewsletterSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log('Email per newsletter:', newsletterEmail);
-    alert(`Grazie per esserti iscritto con: ${newsletterEmail}! (Funzionalità demo)`);
-    setNewsletterEmail('');
+    if (!newsletterEmail) {
+      toast({ title: "Email Mancante", description: "Per favore, inserisci un indirizzo email.", variant: "destructive" });
+      return;
+    }
+    setIsSubscribing(true);
+    try {
+      await addDoc(collection(db, "newsletterSubscriptions"), {
+        email: newsletterEmail,
+        subscribedAt: serverTimestamp(),
+      });
+      toast({
+        title: "Iscrizione Riuscita!",
+        description: `Grazie per esserti iscritto con ${newsletterEmail}!`,
+      });
+      setNewsletterEmail(''); // Clear input after successful subscription
+    } catch (error) {
+      console.error('Errore durante liscrizione alla newsletter:', error);
+      toast({
+        title: "Errore Iscrizione",
+        description: "Impossibile completare l'iscrizione. Riprova più tardi.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubscribing(false);
+    }
   };
 
   const relatedPosts = useMemo(() => {
@@ -59,8 +86,8 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
       return [];
     }
     return posts
-      .filter(p => p.id !== post.id) // Escludi il post corrente
-      .slice(0, MAX_RELATED_POSTS); // Prendi i primi N
+      .filter(p => p.id !== post.id) 
+      .slice(0, MAX_RELATED_POSTS); 
   }, [post, posts]);
 
   if (authLoading || post === undefined) { 
@@ -185,8 +212,10 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                   onChange={(e) => setNewsletterEmail(e.target.value)}
                   required
                   className="flex-grow"
+                  disabled={isSubscribing}
                 />
-                <Button type="submit" className="w-full sm:w-auto">
+                <Button type="submit" className="w-full sm:w-auto" disabled={isSubscribing}>
+                  {isSubscribing ? <Loader2 className="animate-spin mr-2" /> : null}
                   Iscriviti
                 </Button>
               </form>
@@ -198,7 +227,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
             <Card className="mt-8 shadow-lg">
               <CardHeader>
                 <CardTitle className="text-xl flex items-center">
-                  <Newspaper className="mr-3 h-5 w-5 text-primary" /> {/* Changed icon */}
+                  <Newspaper className="mr-3 h-5 w-5 text-primary" /> 
                   Articoli Correlati
                 </CardTitle>
               </CardHeader>

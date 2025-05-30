@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Shield, Loader2, Rss, Palette, Edit3, Sparkles, ListChecks, ExternalLink, FileEdit, Rocket, Send, ImageIcon, Users, MailCheck } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context"; 
 import { usePosts } from "@/contexts/posts-context"; 
@@ -21,8 +21,16 @@ import { syndicateAndProcessContent, type SyndicateAndProcessContentInput, type 
 import { scrapeUrlAndProcessContent, type ScrapeUrlAndProcessContentInput, type ScrapedAndProcessedArticleData } from "@/ai/flows/scrapeUrlAndProcessContent";
 import { useToast } from "@/hooks/use-toast";
 import type { Post } from '@/types/blog'; 
+import { db } from '@/lib/firebase'; // Import db
+import { collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore'; // Import firestore functions
 
 const ADMIN_EMAIL = "coppolek@gmail.com"; 
+
+interface NewsletterSubscriber {
+  id: string;
+  email: string;
+  subscribedAt: string; // Formattato come stringa per la visualizzazione
+}
 
 function BlogFeedView() {
   const { posts } = usePosts(); 
@@ -185,10 +193,14 @@ function AdminNewsSiteView() {
   const [feedProcessingErrors, setFeedProcessingErrors] = useState<{originalTitle?: string, error: string}[]>([]);
 
   // State for URL scraping
-  const [scrapeUrlInput, setScrapeUrlInput] = useState(""); // Renamed to avoid conflict
+  const [scrapeUrlInput, setScrapeUrlInput] = useState(""); 
   const [scrapeCategory, setScrapeCategory] = useState("Scraping");
   const [isScrapingAndProcessing, setIsScrapingAndProcessing] = useState(false);
   const [scrapedAndProcessedData, setScrapedAndProcessedData] = useState<ScrapedAndProcessedArticleData | null>(null);
+
+  // State for Newsletter Subscribers
+  const [newsletterSubscribers, setNewsletterSubscribers] = useState<NewsletterSubscriber[]>([]);
+  const [isLoadingSubscribers, setIsLoadingSubscribers] = useState(false);
 
   useEffect(() => setLocalTitle(currentGlobalTitle), [currentGlobalTitle]);
   useEffect(() => setLocalBgHue(currentGlobalBgHue), [currentGlobalBgHue]);
@@ -203,6 +215,34 @@ function AdminNewsSiteView() {
   useEffect(() => setLocalPrimaryFgHue(currentGlobalPrimaryFgHue), [currentGlobalPrimaryFgHue]);
   useEffect(() => setLocalPrimaryFgSaturation(currentGlobalPrimaryFgSaturation), [currentGlobalPrimaryFgSaturation]);
   useEffect(() => setLocalPrimaryFgLightness(currentGlobalPrimaryFgLightness), [currentGlobalPrimaryFgLightness]);
+
+  const fetchNewsletterSubscribers = async () => {
+    setIsLoadingSubscribers(true);
+    try {
+      const subscribersCollection = collection(db, "newsletterSubscriptions");
+      const q = query(subscribersCollection, orderBy("subscribedAt", "desc"));
+      const querySnapshot = await getDocs(q);
+      const subscribers: NewsletterSubscriber[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        subscribers.push({
+          id: doc.id,
+          email: data.email,
+          subscribedAt: data.subscribedAt instanceof Timestamp ? data.subscribedAt.toDate().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : "Data non disponibile",
+        });
+      });
+      setNewsletterSubscribers(subscribers);
+    } catch (error) {
+      console.error("Errore nel recupero degli iscritti alla newsletter:", error);
+      toast({ title: "Errore Iscritti", description: "Impossibile caricare gli iscritti.", variant: "destructive" });
+    } finally {
+      setIsLoadingSubscribers(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNewsletterSubscribers(); // Carica iscritti all'avvio del pannello admin
+  }, []);
 
 
   const handleSaveCustomizations = () => {
@@ -413,8 +453,9 @@ function AdminNewsSiteView() {
         title="Pannello Admin & News del Sito"
         description="Benvenuto, Admin! Ecco le ultime attività e gli strumenti di gestione."
       />
-      <div className="grid md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] gap-8 mt-8">
-        <aside className="space-y-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mt-8">
+        {/* Colonna Sinistra/Principale per i tools */}
+        <div className="lg:col-span-2 space-y-6">
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -600,109 +641,7 @@ function AdminNewsSiteView() {
               )}
             </CardContent>
           </Card>
-
-
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Palette className="h-6 w-6 text-primary" />
-                Personalizzazione Sito
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="siteTitleInput">Titolo del Sito</Label>
-                <Input 
-                  id="siteTitleInput" 
-                  type="text" 
-                  value={localTitle}
-                  onChange={(e) => setLocalTitle(e.target.value)}
-                  placeholder="Il Mio Fantastico Blog" 
-                  className="mt-1" 
-                />
-              </div>
-              
-              <div className="space-y-1">
-                <Label>Colore Sfondo Principale (HSL)</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <Label htmlFor="bgHue" className="text-xs text-muted-foreground">H (0-360)</Label>
-                    <Input id="bgHue" type="number" min="0" max="360" value={localBgHue} onChange={(e) => setLocalBgHue(e.target.value)} placeholder="45" />
-                  </div>
-                  <div>
-                    <Label htmlFor="bgSaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
-                    <Input id="bgSaturation" type="number" min="0" max="100" value={localBgSaturation} onChange={(e) => setLocalBgSaturation(e.target.value)} placeholder="25" />
-                  </div>
-                  <div>
-                    <Label htmlFor="bgLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
-                    <Input id="bgLightness" type="number" min="0" max="100" value={localBgLightness} onChange={(e) => setLocalBgLightness(e.target.value)} placeholder="96" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label>Colore Sfondo Contenuto (HSL)</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <Label htmlFor="cardHue" className="text-xs text-muted-foreground">H (0-360)</Label>
-                    <Input id="cardHue" type="number" min="0" max="360" value={localCardHue} onChange={(e) => setLocalCardHue(e.target.value)} placeholder="45" />
-                  </div>
-                  <div>
-                    <Label htmlFor="cardSaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
-                    <Input id="cardSaturation" type="number" min="0" max="100" value={localCardSaturation} onChange={(e) => setLocalCardSaturation(e.target.value)} placeholder="25" />
-                  </div>
-                  <div>
-                    <Label htmlFor="cardLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
-                    <Input id="cardLightness" type="number" min="0" max="100" value={localCardLightness} onChange={(e) => setLocalCardLightness(e.target.value)} placeholder="96" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label>Colore Primario Pulsanti (HSL)</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <Label htmlFor="primaryHue" className="text-xs text-muted-foreground">H (0-360)</Label>
-                    <Input id="primaryHue" type="number" min="0" max="360" value={localPrimaryHue} onChange={(e) => setLocalPrimaryHue(e.target.value)} placeholder="190" />
-                  </div>
-                  <div>
-                    <Label htmlFor="primarySaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
-                    <Input id="primarySaturation" type="number" min="0" max="100" value={localPrimarySaturation} onChange={(e) => setLocalPrimarySaturation(e.target.value)} placeholder="28" />
-                  </div>
-                  <div>
-                    <Label htmlFor="primaryLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
-                    <Input id="primaryLightness" type="number" min="0" max="100" value={localPrimaryLightness} onChange={(e) => setLocalPrimaryLightness(e.target.value)} placeholder="57" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label>Colore Testo Primario Pulsanti (HSL)</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <Label htmlFor="primaryFgHue" className="text-xs text-muted-foreground">H (0-360)</Label>
-                    <Input id="primaryFgHue" type="number" min="0" max="360" value={localPrimaryFgHue} onChange={(e) => setLocalPrimaryFgHue(e.target.value)} placeholder="0" />
-                  </div>
-                  <div>
-                    <Label htmlFor="primaryFgSaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
-                    <Input id="primaryFgSaturation" type="number" min="0" max="100" value={localPrimaryFgSaturation} onChange={(e) => setLocalPrimaryFgSaturation(e.target.value)} placeholder="0" />
-                  </div>
-                  <div>
-                    <Label htmlFor="primaryFgLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
-                    <Input id="primaryFgLightness" type="number" min="0" max="100" value={localPrimaryFgLightness} onChange={(e) => setLocalPrimaryFgLightness(e.target.value)} placeholder="100" />
-                  </div>
-                </div>
-              </div>
-
-              <Button onClick={handleSaveCustomizations} disabled={isSavingCustomizations} className="w-full mt-2">
-                {isSavingCustomizations ? <Loader2 className="animate-spin mr-2" /> : <Edit3 className="mr-2 h-4 w-4" />}
-                Salva Personalizzazioni
-              </Button>
-            </CardContent>
-          </Card>
-        </aside>
-
-        <section className="space-y-6">
+          
            <Card className="shadow-lg" id="ai-manual-processing-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -801,19 +740,166 @@ function AdminNewsSiteView() {
               )}
             </CardContent>
           </Card>
+        </div>
+
+        {/* Colonna Destra/Sidebar per altre info */}
+        <aside className="space-y-6">
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Palette className="h-6 w-6 text-primary" />
+                Personalizzazione Sito
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="siteTitleInput">Titolo del Sito</Label>
+                <Input 
+                  id="siteTitleInput" 
+                  type="text" 
+                  value={localTitle}
+                  onChange={(e) => setLocalTitle(e.target.value)}
+                  placeholder="Il Mio Fantastico Blog" 
+                  className="mt-1" 
+                />
+              </div>
+              
+              <div className="space-y-1">
+                <Label>Colore Sfondo Principale (HSL)</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label htmlFor="bgHue" className="text-xs text-muted-foreground">H (0-360)</Label>
+                    <Input id="bgHue" type="number" min="0" max="360" value={localBgHue} onChange={(e) => setLocalBgHue(e.target.value)} placeholder="45" />
+                  </div>
+                  <div>
+                    <Label htmlFor="bgSaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
+                    <Input id="bgSaturation" type="number" min="0" max="100" value={localBgSaturation} onChange={(e) => setLocalBgSaturation(e.target.value)} placeholder="25" />
+                  </div>
+                  <div>
+                    <Label htmlFor="bgLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
+                    <Input id="bgLightness" type="number" min="0" max="100" value={localBgLightness} onChange={(e) => setLocalBgLightness(e.target.value)} placeholder="96" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Colore Sfondo Contenuto (HSL)</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label htmlFor="cardHue" className="text-xs text-muted-foreground">H (0-360)</Label>
+                    <Input id="cardHue" type="number" min="0" max="360" value={localCardHue} onChange={(e) => setLocalCardHue(e.target.value)} placeholder="45" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cardSaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
+                    <Input id="cardSaturation" type="number" min="0" max="100" value={localCardSaturation} onChange={(e) => setLocalCardSaturation(e.target.value)} placeholder="25" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cardLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
+                    <Input id="cardLightness" type="number" min="0" max="100" value={localCardLightness} onChange={(e) => setLocalCardLightness(e.target.value)} placeholder="96" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Colore Primario Pulsanti (HSL)</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label htmlFor="primaryHue" className="text-xs text-muted-foreground">H (0-360)</Label>
+                    <Input id="primaryHue" type="number" min="0" max="360" value={localPrimaryHue} onChange={(e) => setLocalPrimaryHue(e.target.value)} placeholder="190" />
+                  </div>
+                  <div>
+                    <Label htmlFor="primarySaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
+                    <Input id="primarySaturation" type="number" min="0" max="100" value={localPrimarySaturation} onChange={(e) => setLocalPrimarySaturation(e.target.value)} placeholder="28" />
+                  </div>
+                  <div>
+                    <Label htmlFor="primaryLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
+                    <Input id="primaryLightness" type="number" min="0" max="100" value={localPrimaryLightness} onChange={(e) => setLocalPrimaryLightness(e.target.value)} placeholder="57" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Colore Testo Primario Pulsanti (HSL)</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label htmlFor="primaryFgHue" className="text-xs text-muted-foreground">H (0-360)</Label>
+                    <Input id="primaryFgHue" type="number" min="0" max="360" value={localPrimaryFgHue} onChange={(e) => setLocalPrimaryFgHue(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <Label htmlFor="primaryFgSaturation" className="text-xs text-muted-foreground">S (0-100)</Label>
+                    <Input id="primaryFgSaturation" type="number" min="0" max="100" value={localPrimaryFgSaturation} onChange={(e) => setLocalPrimaryFgSaturation(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <Label htmlFor="primaryFgLightness" className="text-xs text-muted-foreground">L (0-100)</Label>
+                    <Input id="primaryFgLightness" type="number" min="0" max="100" value={localPrimaryFgLightness} onChange={(e) => setLocalPrimaryFgLightness(e.target.value)} placeholder="100" />
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={handleSaveCustomizations} disabled={isSavingCustomizations} className="w-full mt-2">
+                {isSavingCustomizations ? <Loader2 className="animate-spin mr-2" /> : <Edit3 className="mr-2 h-4 w-4" />}
+                Salva Personalizzazioni
+              </Button>
+            </CardContent>
+          </Card>
 
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle>Attività Recenti del Sito (Placeholder)</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Users className="h-6 w-6 text-primary" />
+                Gestione Iscritti Newsletter
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>Nuovo articolo: "Il Futuro delle Auto AI" da UtenteX - 2 ore fa</li>
-                <li>Nuovo commento su "Elettrico vs Idrogeno" da UtenteY - 5 ore fa</li>
-              </ul>
+              {isLoadingSubscribers ? (
+                <div className="flex justify-center items-center p-4">
+                  <Loader2 className="animate-spin h-6 w-6 text-primary" />
+                  <span className="ml-2">Caricamento iscritti...</span>
+                </div>
+              ) : newsletterSubscribers.length > 0 ? (
+                <ul className="space-y-2 max-h-60 overflow-y-auto border p-2 rounded-md">
+                  {newsletterSubscribers.map(sub => (
+                    <li key={sub.id} className="text-sm p-1.5 bg-muted/50 rounded-sm">
+                      <span className="font-medium">{sub.email}</span> - <span className="text-xs text-muted-foreground">Iscritto il: {sub.subscribedAt}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nessun iscritto alla newsletter al momento.</p>
+              )}
+               <Button onClick={fetchNewsletterSubscribers} variant="outline" size="sm" className="mt-4 w-full">
+                {isLoadingSubscribers ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+                Aggiorna Lista Iscritti
+              </Button>
             </CardContent>
           </Card>
-        </section>
+
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <MailCheck className="h-6 w-6 text-primary" />
+                Generazione Newsletter (Placeholder)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="newsletterContent">Contenuto Newsletter / Prompt AI</Label>
+                <Textarea id="newsletterContent" placeholder="Scrivi il contenuto o un prompt per l'AI..." rows={5} className="mt-1" />
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button disabled className="flex-1">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Genera con AI (Prossimamente)
+                </Button>
+                <Button disabled variant="secondary" className="flex-1">
+                  <Send className="mr-2 h-4 w-4" />
+                  Invia Newsletter (Prossimamente)
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          
+        </aside>
       </div>
     </div>
   );
