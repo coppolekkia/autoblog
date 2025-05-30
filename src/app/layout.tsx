@@ -5,7 +5,8 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from "@/contexts/auth-context"; 
 import { SiteCustomizationProvider } from '@/contexts/site-customization-context';
-import { PostsProvider } from '@/contexts/posts-context'; // Import PostsProvider
+import { PostsProvider } from '@/contexts/posts-context';
+import { ReactQueryClientProvider } from '@/components/shared/react-query-client-provider'; // Import QueryClientProvider
 import { siteConfig } from '@/config/site'; 
 
 const inter = Inter({ 
@@ -33,14 +34,16 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${robotoMono.variable} font-sans antialiased`}
       >
-        <AuthProvider>
-          <SiteCustomizationProvider>
-            <PostsProvider> {/* Wrap with PostsProvider */}
-              {children}
-              <Toaster />
-            </PostsProvider>
-          </SiteCustomizationProvider>
-        </AuthProvider>
+        <ReactQueryClientProvider> {/* Wrap with QueryClientProvider */}
+          <AuthProvider>
+            <SiteCustomizationProvider>
+              <PostsProvider>
+                {children}
+                <Toaster />
+              </PostsProvider>
+            </SiteCustomizationProvider>
+          </AuthProvider>
+        </ReactQueryClientProvider>
       </body>
     </html>
   );

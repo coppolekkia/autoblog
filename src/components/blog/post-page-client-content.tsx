@@ -13,37 +13,38 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { PageHeader } from '@/components/shared/page-header';
 import { ArrowLeft, ThumbsUp, MessageSquare, Loader2, Shield } from 'lucide-react';
 import type { Post } from '@/types/blog';
-import { notFound } from 'next/navigation'; // Import notFound
+import { notFound } from 'next/navigation'; 
+import CommentForm from './comment-form'; // Import CommentForm
+import CommentList from './comment-list'; // Import CommentList
 
 interface PostPageClientContentProps {
-  slug: string; // Pass slug instead of the whole post object
+  slug: string; 
   adminEmail: string;
 }
 
 export default function PostPageClientContent({ slug, adminEmail }: PostPageClientContentProps) {
   const { currentUser, loading: authLoading } = useAuth();
   const { siteTitle } = useSiteCustomization();
-  const { getPostBySlug } = usePosts(); // Get posts from context
-  const [post, setPost] = useState<Post | undefined | null>(undefined); // undefined: loading, null: not found
+  const { getPostBySlug } = usePosts(); 
+  const [post, setPost] = useState<Post | undefined | null>(undefined); 
 
   useEffect(() => {
     const foundPost = getPostBySlug(slug);
-    setPost(foundPost || null); // Set to null if not found after checking
+    setPost(foundPost || null); 
   }, [slug, getPostBySlug]);
 
 
-  // Update document title
   useEffect(() => {
     if (post?.title && siteTitle) {
       document.title = `${post.title} | ${siteTitle}`;
     } else if (siteTitle) {
-      document.title = siteTitle; // Fallback to siteTitle if post not loaded/found
+      document.title = siteTitle; 
     }
   }, [siteTitle, post?.title]);
 
   const isAdmin = !authLoading && currentUser?.email === adminEmail;
 
-  if (authLoading || post === undefined) { // Show loader while auth or post is loading
+  if (authLoading || post === undefined) { 
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -51,9 +52,9 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     );
   }
 
-  if (!post) { // If post is null (not found after trying)
-    notFound(); // Trigger the not-found UI
-    return null; // Should be unreachable due to notFound()
+  if (!post) { 
+    notFound(); 
+    return null; 
   }
 
   return (
@@ -99,7 +100,6 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                 <Button variant="ghost" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                {/* Pulsante Registrati rimosso */}
               </>
             )}
           </nav>
@@ -141,26 +141,23 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
           )}
 
           <div className="prose prose-lg dark:prose-invert max-w-none mb-8 bg-card p-6 rounded-lg shadow-md">
-            <p>{post.content}</p> 
+            {/* Usa dangerouslySetInnerHTML se il contenuto è HTML, altrimenti renderizza come testo semplice */}
+            {/* Per sicurezza, se il contenuto può essere HTML da fonti non fidate, sanitizzalo! */}
+            {/* <div dangerouslySetInnerHTML={{ __html: post.content }} /> */}
+            <p className="whitespace-pre-wrap">{post.content}</p>
           </div>
 
+          {/* Sezione Commenti */}
           <Card className="mt-12 shadow-lg" id="comments">
             <CardHeader>
               <CardTitle className="text-2xl flex items-center">
                 <MessageSquare className="mr-2 h-6 w-6 text-primary" />
-                Commenti ({post.commentsCount})
+                Commenti ({post.commentsCount}) {/* Static count for now */}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground mb-4">
-                {currentUser ? "Lascia un commento:" : "Accedi per lasciare un commento."}
-              </p>
-              <div className="border-t pt-4">
-                {/* TODO: Implement comment form and list */}
-                <p className="text-sm text-center text-muted-foreground">
-                  (Sezione commenti in costruzione)
-                </p>
-              </div>
+              <CommentForm postId={post.id.toString()} />
+              <CommentList postId={post.id.toString()} />
             </CardContent>
             <CardFooter className="flex items-center space-x-2 text-sm text-muted-foreground border-t pt-4 mt-4">
                 <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary px-2">
