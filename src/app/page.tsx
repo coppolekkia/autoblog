@@ -278,8 +278,15 @@ function AdminNewsSiteView() {
     setIsProcessingFeed(true);
     setProcessedFeedArticles([]);
     setFeedProcessingErrors([]);
+
+    let effectiveFeedUrl = feedUrl.trim();
+    if (effectiveFeedUrl && !effectiveFeedUrl.startsWith('http://') && !effectiveFeedUrl.startsWith('https://')) {
+      effectiveFeedUrl = `https://${effectiveFeedUrl}`;
+      setFeedUrl(effectiveFeedUrl); // Update state to reflect change in UI if needed, though not strictly necessary here
+    }
+
     try {
-      const input: SyndicateAndProcessContentInput = { feedUrl, defaultCategory: defaultFeedCategory };
+      const input: SyndicateAndProcessContentInput = { feedUrl: effectiveFeedUrl, defaultCategory: defaultFeedCategory };
       const result: SyndicateAndProcessContentOutput = await syndicateAndProcessContent(input);
       
       setProcessedFeedArticles(result.processedArticles);
@@ -288,7 +295,7 @@ function AdminNewsSiteView() {
         toast({ 
           title: "Feed Elaborato con Errori", 
           description: `Completato, ma ${result.errors.length} articoli hanno avuto problemi. Controlla i dettagli.`, 
-          variant: "destructive" 
+          variant: "default" // Changed to default to be less alarming if some articles are still processed
         });
       } else if (result.processedArticles.length === 0) {
         toast({ title: "Nessun Articolo Elaborato", description: "Il feed potrebbe essere vuoto o gli articoli non idonei.", variant: "default" });
@@ -298,6 +305,8 @@ function AdminNewsSiteView() {
       }
     } catch (error) {
       console.error("Errore durante l'importazione e l'elaborazione del feed:", error);
+      // The error message from Zod will be "L'URL del feed non è valido." if it's a Zod validation error.
+      // Other errors will have their own messages.
       toast({ title: "Errore Elaborazione Feed", description: (error as Error).message || "Si è verificato un errore critico.", variant: "destructive" });
       setFeedProcessingErrors([{error: (error as Error).message || "Errore critico sconosciuto."}]);
     } finally {
@@ -306,11 +315,10 @@ function AdminNewsSiteView() {
   };
 
   const handleReviewAndEditProcessedArticle = (article: ProcessedArticleData) => {
-    setOriginalPostTitle(article.originalTitleFromFeed || article.processedTitle); // Priorità al titolo originale del feed se disponibile
+    setOriginalPostTitle(article.originalTitleFromFeed || article.processedTitle); 
     setOriginalPostContent(article.processedContent);
-    setPostCategory(defaultFeedCategory); // Usa la categoria con cui è stato processato il feed
+    setPostCategory(defaultFeedCategory); 
     
-    // Popola processedPostDataManual per mostrare i risultati nella card di elaborazione manuale
     setProcessedPostDataManual({
       processedTitle: article.processedTitle,
       processedContent: article.processedContent,
@@ -344,7 +352,7 @@ function AdminNewsSiteView() {
                 <Input 
                   id="feedUrlInput" 
                   type="url" 
-                  placeholder="https://esempio.com/feed.xml" 
+                  placeholder="esempio.com/feed.xml" 
                   value={feedUrl}
                   onChange={(e) => setFeedUrl(e.target.value)}
                   disabled={isProcessingFeed}
@@ -363,7 +371,7 @@ function AdminNewsSiteView() {
                   className="mt-1"
                 />
               </div>
-              <Button onClick={handleSyndicateAndProcess} disabled={isProcessingFeed} className="w-full">
+              <Button onClick={handleSyndicateAndProcess} disabled={isProcessingFeed || !feedUrl || !defaultFeedCategory} className="w-full">
                 {isProcessingFeed ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2"/>}
                 Importa ed Elabora Feed
               </Button> 
@@ -563,7 +571,7 @@ function AdminNewsSiteView() {
                   disabled={isProcessingPostManual}
                 />
               </div>
-              <Button onClick={handleProcessPostManually} disabled={isProcessingPostManual} className="w-full">
+              <Button onClick={handleProcessPostManually} disabled={isProcessingPostManual || !originalPostTitle || !originalPostContent || !postCategory} className="w-full">
                 {isProcessingPostManual ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2 h-4 w-4" />}
                 (Ri)Elabora Post con AI
               </Button>
@@ -697,3 +705,6 @@ export default function HomePage() {
     </div>
   );
 }
+
+
+    
