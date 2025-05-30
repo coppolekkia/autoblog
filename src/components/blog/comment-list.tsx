@@ -9,6 +9,7 @@ import { Loader2, MessageCircleOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button'; // Added import for Button
 
 interface Comment {
   id: string;
