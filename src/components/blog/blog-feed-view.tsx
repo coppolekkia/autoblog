@@ -1,4 +1,3 @@
-
 // src/components/blog/blog-feed-view.tsx
 "use client";
 
@@ -6,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/shared/page-header';
+// PageHeader import removed as it's no longer used here
 import { Card, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, MessageSquare, ThumbsUp, Loader2 } from 'lucide-react';
@@ -18,13 +17,11 @@ export function BlogFeedView() {
   if (!posts || posts.length === 0) {
     return (
       <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
-        <PageHeader
-          title="Feed Principale"
-          description="Nessun articolo da mostrare al momento. L'admin può aggiungere contenuti dal pannello."
-        />
-        <div className="text-center">
+        {/* PageHeader removed from here */}
+        <div className="text-center mt-12"> {/* Added margin-top for spacing */}
             <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
             <p className="text-muted-foreground">In attesa di caricamento articoli...</p>
+            <p className="text-sm text-muted-foreground mt-2">L'admin può aggiungere contenuti dal pannello.</p>
         </div>
       </div>
     )
@@ -32,11 +29,14 @@ export function BlogFeedView() {
 
   return (
     <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
-      <PageHeader
-        title="Feed Principale"
-        description="Esplora gli ultimi articoli e discussioni."
-      />
-      <section className="max-w-4xl mx-auto space-y-8">
+      {/* 
+        PageHeader was here, removed as per request:
+        <PageHeader
+          title="Feed Principale" 
+          description="Esplora gli ultimi articoli e discussioni."
+        /> 
+      */}
+      <section className="max-w-4xl mx-auto space-y-8 mt-8"> {/* Added margin-top for spacing if header was providing it */}
         {posts.map((post) => (
           <Card key={post.id} className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 bg-card flex flex-col">
             {post.imageUrl && (
