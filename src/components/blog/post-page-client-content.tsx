@@ -10,7 +10,7 @@ import { usePosts } from "@/contexts/posts-context";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
-import { ArrowLeft, Loader2, Shield, Newspaper, XIcon, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Loader2, Shield, Newspaper, XIcon, AlertTriangle, UserCog, Home, List } from 'lucide-react'; // Added UserCog, Home, List
 import type { Post } from '@/types/blog';
 import { notFound } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, Timestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
+import { CategoriesMenu } from '@/components/shared/categories-menu'; // Import CategoriesMenu
 
 
 interface PostPageClientContentProps {
@@ -71,9 +72,9 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   const { toast } = useToast();
 
   const { data: activeBanners = [], isLoading: isLoadingBanners, isError: isErrorBanners, error: bannersError } = useQuery<Banner[], Error>({
-    queryKey: ['activeBanners', slug],
+    queryKey: ['activeBanners', slug], // Include slug in queryKey if banners might be post-specific
     queryFn: fetchActiveBanners,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // Banners are refetched every 5 mins
   });
 
   const [showPopupBanner, setShowPopupBanner] = useState(false);
@@ -91,7 +92,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
 
 
   useEffect(() => {
-    if (posts.length > 0 && post === null) {
+    if (posts.length > 0 && post === null) { // If posts are loaded but this specific post isn't found
         notFound();
     }
   }, [post, posts]);
@@ -101,6 +102,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     if (post?.title && siteTitle) {
       document.title = `${post.title} | ${siteTitle}`;
     } else if (siteTitle) {
+      // Fallback if post title isn't available yet
       document.title = siteTitle;
     }
   }, [siteTitle, post?.title]);
@@ -115,18 +117,19 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     if (!isLoadingBanners && !isErrorBanners) {
       console.log('[PostPageClientContent] Banners fetched (or cache used), count:', activeBanners.length);
       if (activeBanners.length === 0 && !isErrorBanners) {
-        console.warn('[PostPageClientContent] No active banners found. Check Firestore data and security rules for "banners" collection.');
+        // This warning is normal if no active banners are configured.
+        console.log('[PostPageClientContent] No active banners found. Check Firestore data and security rules for "banners" collection if you expect them.');
       }
       const popupBanner = activeBanners.find(b => b.placement === 'popup');
       if (popupBanner) {
         console.log('[PostPageClientContent] Popup banner found:', popupBanner.name);
-        const popupShownKey = `popupShown_${popupBanner.id}_${slug}`;
+        const popupShownKey = `popupShown_${popupBanner.id}_${slug}`; // Make key post-specific
         const popupShown = sessionStorage.getItem(popupShownKey);
         if (!popupShown) {
           console.log('[PostPageClientContent] Showing popup banner:', popupBanner.name);
           setPopupBannerContent(popupBanner.contentHTML);
           setShowPopupBanner(true);
-          sessionStorage.setItem(popupShownKey, 'true');
+          sessionStorage.setItem(popupShownKey, 'true'); // Mark as shown for this post in this session
         } else {
           console.log('[PostPageClientContent] Popup banner already shown this session for this post:', popupBanner.name);
         }
@@ -140,19 +143,26 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   const isAdmin = !authLoading && currentUser?.email === adminEmail;
 
   const relatedPosts = useMemo(() => {
-    if (!post || posts.length <= 1) {
+    if (!post || !posts || posts.length <= 1) {
       return [];
     }
-    return posts
-      .filter(p => p.id !== post.id)
-      .slice(0, MAX_RELATED_POSTS);
+    // Filter related posts by category first, then slice.
+    // If not enough in the same category, could fall back to other posts.
+    const sameCategoryPosts = posts.filter(p => p.id !== post.id && p.category === post.category);
+    if (sameCategoryPosts.length >= MAX_RELATED_POSTS) {
+        return sameCategoryPosts.slice(0, MAX_RELATED_POSTS);
+    }
+    // If not enough, supplement with other posts (excluding current and already selected)
+    const otherPosts = posts.filter(p => p.id !== post.id && p.category !== post.category);
+    return [...sameCategoryPosts, ...otherPosts].slice(0, MAX_RELATED_POSTS);
+
   }, [post, posts]);
 
   const underTitleBanner = useMemo(() => activeBanners.find(b => b.placement === 'underTitle'), [activeBanners]);
   const afterContentBannerData = useMemo(() => activeBanners.find(b => b.placement === 'afterContent'), [activeBanners]);
 
 
-  if (authLoading || post === undefined) {
+  if (authLoading || post === undefined) { // Still loading auth or initial post lookup
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -160,11 +170,14 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
     );
   }
 
+  // If posts have loaded from context, and post is explicitly null (meaning not found by slug)
   if (!post) {
+     // This case should ideally be handled by the useEffect that calls notFound(),
+     // but as a fallback render a loading or not found message.
     return (
         <div className="flex min-h-screen w-full items-center justify-center bg-background">
           <Loader2 className="h-16 w-16 animate-spin text-primary" />
-          <p className="ml-2">Caricamento post...</p>
+          <p className="ml-2">Caricamento post o post non trovato...</p>
         </div>
       );
   }
@@ -172,36 +185,31 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   const renderContentWithInArticleBanner = () => {
     if (!post.content) return null;
 
-    const paragraphs = post.content.split(/\n\s*\n/);
-    const bannerInsertionPoint = paragraphs.length > 1 ? 1 : 0;
+    const paragraphs = post.content.split(/\n\s*\n/); // Split by one or more newlines
+    // Try to insert banner after the first paragraph, or at the start if only one/no paragraphs
+    const bannerInsertionPoint = paragraphs.length > 1 ? 1 : 0; 
 
     return (
       <>
         {paragraphs.slice(0, bannerInsertionPoint).map((p, i) => (
-          <p key={`pre-banner-p-${i}`} className="whitespace-pre-wrap">{p}</p>
+          <p key={`pre-banner-p-${i}`} className="whitespace-pre-wrap my-4">{p}</p>
         ))}
         
         {afterContentBannerData && bannerInsertionPoint < paragraphs.length && (
           <div
-            className="my-6 p-4 border rounded-md shadow-sm bg-card"
+            className="my-6 p-4 border rounded-md shadow-sm bg-card/80" // Slightly different bg for banner
             dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }}
           />
         )}
         
         {paragraphs.slice(bannerInsertionPoint).map((p, i) => (
-          <p key={`post-banner-p-${i}`} className="whitespace-pre-wrap">{p}</p>
+          <p key={`post-banner-p-${i}`} className="whitespace-pre-wrap my-4">{p}</p>
         ))}
         
-        {afterContentBannerData && bannerInsertionPoint === paragraphs.length && paragraphs.length > 0 && (
+        {/* If banner point is at the end (or no paragraphs), render banner after all content */}
+        {afterContentBannerData && bannerInsertionPoint === paragraphs.length && (
            <div
-            className="my-6 p-4 border rounded-md shadow-sm bg-card"
-            dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }}
-          />
-        )}
-        
-        {afterContentBannerData && paragraphs.length === 0 && (
-           <div
-            className="my-6 p-4 border rounded-md shadow-sm bg-card"
+            className="my-6 p-4 border rounded-md shadow-sm bg-card/80"
             dangerouslySetInnerHTML={{ __html: afterContentBannerData.contentHTML }}
           />
         )}
@@ -213,20 +221,32 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
   return (
     <div className="min-h-screen flex flex-col bg-muted/40">
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="font-bold text-xl text-primary">{siteTitle}</span>
-          </Link>
-          <nav className="flex items-center space-x-2">
+        <div className="container flex h-16 items-center relative">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/">
+                <ArrowLeft className="h-4 w-4 md:mr-2" />
+                 <span className="hidden md:inline">Blog</span>
+              </Link>
+            </Button>
+          </div>
+          <div className="mx-auto">
+            <Link href="/" className="flex items-center space-x-2">
+              <UserCog className="h-6 w-6 text-primary" />
+              <span className="font-bold text-xl text-primary">{siteTitle}</span>
+            </Link>
+          </div>
+          <nav className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center space-x-1 md:space-x-2">
+            <CategoriesMenu />
             {currentUser ? (
               <>
                 {isAdmin && (
-                  <span className="hidden md:inline-flex items-center gap-1 text-sm font-medium text-accent-foreground bg-accent px-2 py-1 rounded-md mr-2">
+                  <span className="hidden md:inline-flex items-center gap-1 text-sm font-medium text-accent-foreground bg-accent px-2 py-1 rounded-md">
                     <Shield className="h-4 w-4" />
-                    Admin Mode
+                    Admin
                   </span>
                 )}
-                <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
+                <span className="text-sm text-foreground hidden md:inline truncate max-w-[100px] lg:max-w-[200px]">{currentUser.email}</span>
                 {!isAdmin && (
                   <Button variant="outline" size="sm" asChild>
                     <Link href="/dashboard">Dashboard</Link>
@@ -252,7 +272,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
               </>
             ) : (
               <>
-                <Button variant="ghost" asChild>
+                <Button variant="ghost" size="sm" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
               </>
@@ -262,14 +282,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
       </header>
 
       <main className="flex-1 container mx-auto py-8 px-4 md:px-6 lg:px-8">
-        <div className="mb-6">
-          <Button variant="outline" asChild>
-            <Link href="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Torna al Blog
-            </Link>
-          </Button>
-        </div>
+        {/* Back button removed from here as it's in the header now */}
 
         {isErrorBanners && (
           <div className="my-6 p-4 border border-destructive bg-destructive/10 text-destructive rounded-md shadow-sm flex items-center gap-2">
@@ -295,7 +308,11 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
             <span>Pubblicato da </span>
             <span className="font-medium">{post.author}</span>
             <span> il {post.date}</span>
-            {post.category && <span className="ml-2 inline-block rounded bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">r/{post.category}</span>}
+            {post.category && (
+                <Link href={`/category/${post.category.toLowerCase().replace(/\s+/g, '-')}`} className="ml-2 inline-block rounded bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80">
+                    r/{post.category}
+                </Link>
+            )}
           </div>
 
           {post.imageUrl && (
@@ -307,7 +324,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                 height={400}
                 className="w-full h-auto object-cover"
                 data-ai-hint={post.imageHint || "blog image"}
-                priority
+                priority // This is the main image of the page
               />
             </div>
           )}
@@ -316,7 +333,6 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
             {afterContentBannerData ? renderContentWithInArticleBanner() : <p className="whitespace-pre-wrap">{post.content}</p>}
           </div>
           
-          {/* Sezione Articoli Correlati */}
           {relatedPosts.length > 0 && (
             <Card className="mt-8 shadow-lg">
               <CardHeader>
@@ -329,7 +345,7 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {relatedPosts.map(relatedPost => (
                     <Link key={relatedPost.id} href={`/blog/${relatedPost.slug}`} className="group block">
-                      <Card className="overflow-hidden h-full transition-all duration-300 ease-in-out group-hover:shadow-xl hover:border-primary/50">
+                      <Card className="overflow-hidden h-full transition-all duration-300 ease-in-out group-hover:shadow-xl hover:border-primary/50 bg-card hover:bg-card/95">
                         {relatedPost.imageUrl && (
                           <div className="aspect-[16/9] overflow-hidden">
                             <Image
@@ -359,8 +375,9 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
         {popupBannerContent && (
           <AlertDialog open={showPopupBanner} onOpenChange={setShowPopupBanner}>
             <AlertDialogContent className="max-w-md">
-              <AlertDialogHeader className="relative">
-                <Button
+              <AlertDialogHeader className="relative pt-2 pr-2"> {/* Adjust padding for close button */}
+                {/* Close button moved inside, so no separate title needed if banner has its own */}
+                 <Button
                     variant="ghost"
                     size="icon"
                     className="absolute top-2 right-2 h-6 w-6 z-10 rounded-full p-0"
@@ -372,7 +389,8 @@ export default function PostPageClientContent({ slug, adminEmail }: PostPageClie
                 </Button>
               </AlertDialogHeader>
               <AlertDialogDescription asChild>
-                <div dangerouslySetInnerHTML={{ __html: popupBannerContent }} />
+                {/* Ensure banner content is not too large for a popup */}
+                <div className="p-4 max-h-[70vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: popupBannerContent }} />
               </AlertDialogDescription>
             </AlertDialogContent>
           </AlertDialog>

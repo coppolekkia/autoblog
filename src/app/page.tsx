@@ -7,9 +7,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic'; // Import next/dynamic
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
-import { Loader2, Shield, UserCog } from 'lucide-react';
+import { Loader2, Shield, UserCog, Home } from 'lucide-react'; // Added Home
 import { useAuth } from "@/contexts/auth-context";
 import { useSiteCustomization } from "@/contexts/site-customization-context";
+import { CategoriesMenu } from '@/components/shared/categories-menu'; // Import CategoriesMenu
 
 // !! IMPORTANTE !! Questo UID è stato rilevato dall'errore.
 // !! DEVI USARE QUESTO UID NELLE TUE REGOLE DI SICUREZZA FIRESTORE !!!
@@ -69,21 +70,32 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background" data-page-id="home-page-main-wrapper">
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2">
-            <UserCog className="h-6 w-6 text-primary" />
-            <span className="font-bold text-xl text-primary">{siteTitle}</span>
-          </Link>
-          <nav className="flex items-center space-x-2">
+        <div className="container flex h-16 items-center relative">
+          {/* Left Slot - Empty on Home Page */}
+          <div className="absolute left-4 top-1/2 -translate-y-1/2">
+            {/* Intentionally empty on the main homepage */}
+          </div>
+
+          {/* Centered Logo */}
+          <div className="mx-auto">
+            <Link href="/" className="flex items-center space-x-2">
+              <UserCog className="h-6 w-6 text-primary" />
+              <span className="font-bold text-xl text-primary">{siteTitle}</span>
+            </Link>
+          </div>
+          
+          {/* Right Slot */}
+          <nav className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center space-x-1 md:space-x-2">
+            <CategoriesMenu />
             {currentUser ? (
               <>
                 {isAdmin && (
-                  <span className="hidden md:inline-flex items-center gap-1 text-sm font-medium text-accent-foreground bg-accent px-2 py-1 rounded-md mr-2">
+                  <span className="hidden md:inline-flex items-center gap-1 text-sm font-medium text-accent-foreground bg-accent px-2 py-1 rounded-md">
                     <Shield className="h-4 w-4" />
-                    Admin Mode
+                    Admin
                   </span>
                 )}
-                <span className="text-sm text-foreground mr-2 hidden md:inline truncate max-w-[150px] lg:max-w-[250px]">{currentUser.email}</span>
+                <span className="text-sm text-foreground hidden md:inline truncate max-w-[100px] lg:max-w-[200px]">{currentUser.email}</span>
                 {!isAdmin && ( 
                   <Button variant="outline" size="sm" asChild>
                     <Link href="/dashboard">Dashboard</Link>
@@ -107,7 +119,7 @@ export default function HomePage() {
               </>
             ) : (
               <>
-                <Button variant="ghost" asChild>
+                <Button variant="ghost" size="sm" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
               </>
