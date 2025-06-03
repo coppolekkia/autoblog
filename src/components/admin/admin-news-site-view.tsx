@@ -39,6 +39,9 @@ interface AdminNewsSiteViewProps {
   adminUid: string; // Pass ADMIN_UID_FOR_RULES as a prop
 }
 
+type BatchScrapeResultItem = ScrapedAndProcessedArticleData & { status: 'success' | 'error', originalUrl: string, message?: string };
+
+
 export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
   const { currentUser } = useAuth();
   const {
@@ -110,7 +113,7 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
   const [scrapeUrlsInput, setScrapeUrlsInput] = useState("");
   const [scrapeCategory, setScrapeCategory] = useState("Scraping");
   const [isProcessingBatchScrape, setIsProcessingBatchScrape] = useState(false);
-  const [batchScrapeResults, setBatchScrapeResults] = useState<Array<ScrapedAndProcessedArticleData & { status: 'success' | 'error', originalUrl: string, message?: string }>>([]);
+  const [batchScrapeResults, setBatchScrapeResults] = useState<BatchScrapeResultItem[]>([]);
 
 
   const [bannerName, setBannerName] = useState("");
@@ -338,7 +341,7 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
     console.log(`[AdminNewsSiteView] Starting batch scrape for ${urls.length} URLs in category: ${scrapeCategory}. URLs:`, urls);
     setIsProcessingBatchScrape(true);
     setBatchScrapeResults([]);
-    let currentResults: Array<ScrapedAndProcessedArticleData & { status: 'success' | 'error', originalUrl: string, message?: string }> = [];
+    let currentResults: BatchScrapeResultItem[] = [];
 
     for (const url of urls) {
       let effectiveScrapeUrl = url;
@@ -354,39 +357,35 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
 
         if (scrapedData.error && (!scrapedData.processedContent || scrapedData.processedContent.length < 50)) {
           currentResults = [...currentResults, { ...scrapedData, status: 'error', originalUrl: url, message: scrapedData.error }];
-          setBatchScrapeResults(currentResults);
+          setBatchScrapeResults(currentResults); // Update state iteratively
           toast({ title: `Errore URL: ${url}`, description: scrapedData.error, variant: "destructive" });
           console.warn(`[AdminNewsSiteView] Error scraping ${url}: ${scrapedData.error}`);
           continue;
         }
         
-        addPost({
-          title: scrapedData.processedTitle,
-          content: scrapedData.processedContent,
-          excerpt: scrapedData.metaDescription,
-          category: scrapeCategory,
-          imageUrl: scrapedData.extractedImageUrl || undefined,
-          imageHint: scrapedData.extractedImageUrl ? (scrapedData.processedTitle.split(" ").slice(0,2).join(" ") || "scraped image") : undefined,
-        });
-        
-        currentResults = [...currentResults, { ...scrapedData, status: 'success', originalUrl: url, message: 'Pubblicato con successo!' }];
-        setBatchScrapeResults(currentResults);
-        toast({ title: `Successo URL: ${url}`, description: `"${scrapedData.processedTitle}" pubblicato.` });
-        console.log(`[AdminNewsSiteView] Successfully processed and published ${url}`);
+        // NON PUBBLICARE AUTOMATICAMENTE QUI
+        // Invece, aggiungi ai risultati per la revisione
+        currentResults = [...currentResults, { ...scrapedData, status: 'success', originalUrl: url, message: 'Elaborato. Pronto per revisione.' }];
+        setBatchScrapeResults(currentResults); // Update state iteratively
+        toast({ title: `Successo Elaborazione URL: ${url}`, description: `"${scrapedData.processedTitle}" elaborato. Rivedi e pubblica manualmente.` });
+        console.log(`[AdminNewsSiteView] Successfully processed ${url}. Ready for review.`);
 
       } catch (error: any) {
         console.error(`[AdminNewsSiteView] Critical error processing ${url}:`, error);
-        currentResults = [...currentResults, { 
+        const errorResult: BatchScrapeResultItem = { 
             processedTitle: "Errore Elaborazione", 
             processedContent: "N/D", 
             metaDescription: "N/D", 
             seoKeywords: [], 
-            originalUrlScraped: url, 
+            originalUrlScraped: url,
+            extractedImageUrl: undefined,
             status: 'error', 
             originalUrl: url, 
-            message: error.message || "Errore sconosciuto durante l'elaborazione batch." 
-        }];
-        setBatchScrapeResults(currentResults);
+            message: error.message || "Errore sconosciuto durante l'elaborazione batch.",
+            error: error.message || "Errore sconosciuto"
+        };
+        currentResults = [...currentResults, errorResult];
+        setBatchScrapeResults(currentResults); // Update state iteratively
         toast({ title: `Errore Critico URL: ${url}`, description: error.message || "Errore sconosciuto.", variant: "destructive" });
       }
     }
@@ -536,8 +535,11 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <Rocket className="h-6 w-6 text-primary" />
-                  Estrai da URL (Batch) & Elabora/Pubblica
+                  Estrai da URL (Batch) & Elabora
                 </CardTitle>
+                <CardDescription>
+                  Gli articoli estratti ed elaborati appariranno qui sotto. Clicca "Rivedi ed Edita" per caricarli nell'editor manuale e poi pubblicarli.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -566,42 +568,45 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
                 </div>
                 <Button onClick={handleBatchScrapeAndProcess} disabled={isProcessingBatchScrape || !scrapeUrlsInput.trim() || !scrapeCategory} className="w-full">
                   {isProcessingBatchScrape ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                  Elabora e Pubblica URL in Batch
+                  Estrai ed Elabora URL in Batch
                 </Button>
                 {batchScrapeResults.length > 0 && (
                   <div className="mt-6 space-y-3 border-t pt-4 max-h-96 overflow-y-auto">
-                    <h4 className="font-semibold text-sm mb-2">Risultati Elaborazione Batch:</h4>
+                    <h4 className="font-semibold text-sm mb-2">Risultati Elaborazione Batch URL:</h4>
                     {batchScrapeResults.map((result, index) => (
-                      <Card key={`${result.originalUrl}-${index}`} className="p-3 text-sm bg-muted/30">
-                         <div className="flex justify-between items-center mb-1">
-                            <p className="text-xs text-muted-foreground truncate font-mono" title={result.originalUrl}>
-                                URL: {result.originalUrl.length > 50 ? result.originalUrl.substring(0, 50) + "..." : result.originalUrl}
+                      <Card key={`${result.originalUrl}-${index}`} className={`p-3 text-sm ${result.status === 'success' ? 'bg-muted/30' : 'bg-destructive/10 border-destructive/30'}`}>
+                         <div className="flex justify-between items-start mb-1">
+                            <p className="text-xs text-muted-foreground truncate font-mono flex-grow" title={result.originalUrl}>
+                                URL: {result.originalUrl.length > 40 ? result.originalUrl.substring(0, 40) + "..." : result.originalUrl}
                             </p>
-                            <Badge variant={result.status === 'success' ? 'default' : 'destructive'} className="text-xs">
-                                {result.status === 'success' ? 'Successo' : 'Errore'}
-                            </Badge>
-                        </div>
-                        <p className="font-semibold truncate" title={result.processedTitle}>
-                            Titolo: {result.processedTitle || "N/D"}
-                        </p>
-                        {result.status === 'error' && result.message && (
-                            <p className="text-xs text-destructive mt-1">{result.message}</p>
-                        )}
-                         {result.status === 'success' && (
-                           <div className="mt-2 flex items-center gap-2">
-                              {result.extractedImageUrl && (
+                             {result.status === 'success' && result.extractedImageUrl && (
                                 <Image
                                   src={result.extractedImageUrl}
                                   alt={result.processedTitle || "Immagine articolo"}
-                                  width={60}
-                                  height={35}
-                                  className="rounded object-cover aspect-video"
+                                  width={40}
+                                  height={22} // approx 16:9 for 40px width
+                                  className="rounded object-cover aspect-video ml-2 shrink-0"
                                   data-ai-hint={result.processedTitle.split(" ").slice(0,2).join(" ") || "scraped image"}
                                 />
                               )}
-                              <p className="text-xs text-green-600">{result.message || "Pubblicato con successo"}</p>
-                           </div>
-                        )}
+                            {result.status === 'success' && (
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-7 w-7 shrink-0 ml-2"
+                                    onClick={() => handleReviewAndEditProcessedArticle(result, scrapeCategory)}
+                                    title="Rivedi ed Edita Articolo Estratto"
+                                    >
+                                    <FileEdit className="h-3.5 w-3.5" />
+                                </Button>
+                            )}
+                        </div>
+                        <p className="font-semibold truncate" title={result.processedTitle}>
+                            {result.processedTitle || "N/D"}
+                        </p>
+                        <p className={`text-xs mt-1 ${result.status === 'success' ? 'text-green-600' : 'text-destructive'}`}>
+                            {result.message || (result.status === 'error' ? result.error : 'Pronto per revisione')}
+                        </p>
                       </Card>
                     ))}
                   </div>
@@ -913,5 +918,7 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
     </div>
   );
 }
+
+    
 
     
