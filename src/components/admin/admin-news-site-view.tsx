@@ -324,6 +324,7 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
   };
 
   const handleBatchScrapeAndProcess = async () => {
+    console.log('[AdminNewsSiteView] handleBatchScrapeAndProcess invoked.');
     const urls = scrapeUrlsInput.trim().split('\n').map(url => url.trim()).filter(url => url);
     if (urls.length === 0) {
       toast({ title: "Nessun URL Inserito", description: "Per favore, inserisci uno o più URL nella textarea.", variant: "destructive" });
@@ -334,6 +335,7 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
       return;
     }
 
+    console.log(`[AdminNewsSiteView] Starting batch scrape for ${urls.length} URLs in category: ${scrapeCategory}. URLs:`, urls);
     setIsProcessingBatchScrape(true);
     setBatchScrapeResults([]);
     let currentResults: Array<ScrapedAndProcessedArticleData & { status: 'success' | 'error', originalUrl: string, message?: string }> = [];
@@ -343,16 +345,18 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
       if (!effectiveScrapeUrl.startsWith('http://') && !effectiveScrapeUrl.startsWith('https://')) {
         effectiveScrapeUrl = `https://${effectiveScrapeUrl}`;
       }
-
+      console.log(`[AdminNewsSiteView] Processing URL: ${effectiveScrapeUrl}`);
       try {
         toast({ title: `Inizio Elaborazione URL: ${url}`, description: "Estrazione e analisi AI in corso..." });
         const input: ScrapeUrlAndProcessContentInput = { url: effectiveScrapeUrl, category: scrapeCategory };
         const scrapedData = await scrapeUrlAndProcessContent(input);
+        console.log(`[AdminNewsSiteView] Scraped data for ${url}:`, scrapedData);
 
         if (scrapedData.error && (!scrapedData.processedContent || scrapedData.processedContent.length < 50)) {
           currentResults = [...currentResults, { ...scrapedData, status: 'error', originalUrl: url, message: scrapedData.error }];
           setBatchScrapeResults(currentResults);
           toast({ title: `Errore URL: ${url}`, description: scrapedData.error, variant: "destructive" });
+          console.warn(`[AdminNewsSiteView] Error scraping ${url}: ${scrapedData.error}`);
           continue;
         }
         
@@ -368,8 +372,10 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
         currentResults = [...currentResults, { ...scrapedData, status: 'success', originalUrl: url, message: 'Pubblicato con successo!' }];
         setBatchScrapeResults(currentResults);
         toast({ title: `Successo URL: ${url}`, description: `"${scrapedData.processedTitle}" pubblicato.` });
+        console.log(`[AdminNewsSiteView] Successfully processed and published ${url}`);
 
       } catch (error: any) {
+        console.error(`[AdminNewsSiteView] Critical error processing ${url}:`, error);
         currentResults = [...currentResults, { 
             processedTitle: "Errore Elaborazione", 
             processedContent: "N/D", 
@@ -385,6 +391,7 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
       }
     }
     setIsProcessingBatchScrape(false);
+    console.log('[AdminNewsSiteView] Batch scrape process finished.');
   };
 
 
@@ -583,11 +590,11 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
                          {result.status === 'success' && (
                            <div className="mt-2 flex items-center gap-2">
                               {result.extractedImageUrl && (
-                                <Image 
-                                  src={result.extractedImageUrl} 
-                                  alt={result.processedTitle || "Immagine articolo"} 
-                                  width={60} 
-                                  height={35} 
+                                <Image
+                                  src={result.extractedImageUrl}
+                                  alt={result.processedTitle || "Immagine articolo"}
+                                  width={60}
+                                  height={35}
                                   className="rounded object-cover aspect-video"
                                   data-ai-hint={result.processedTitle.split(" ").slice(0,2).join(" ") || "scraped image"}
                                 />
@@ -906,3 +913,5 @@ export function AdminNewsSiteView({ adminUid }: AdminNewsSiteViewProps) {
     </div>
   );
 }
+
+    
