@@ -19,7 +19,13 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'pwm.im-cdn.it', // Added this new pattern
+        hostname: 'pwm.im-cdn.it',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.ansa.it', // Ensure this entry is present
         port: '',
         pathname: '/**',
       },
