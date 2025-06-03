@@ -195,16 +195,35 @@ const scrapeUrlAndProcessContentFlow = ai.defineFlow(
       };
 
     } catch (e: any) {
-      console.error(`Errore durante l'elaborazione AI del contenuto estratto da ${url}:`, e);
+      // Log dell'intero oggetto errore per un debug più approfondito lato server
+      console.error(`Errore durante l'elaborazione AI del contenuto estratto da ${url}:`, JSON.stringify(e, Object.getOwnPropertyNames(e), 2));
+      
+      let aiErrorMessage = "Errore sconosciuto durante l'elaborazione AI.";
+      if (e.message) {
+        aiErrorMessage = e.message;
+      }
+      // Prova a estrarre dettagli più specifici se disponibili nell'oggetto errore
+      if (e.status && e.statusText) {
+        // Tipico per errori fetch/http o errori strutturati da Genkit
+        aiErrorMessage = `Errore AI: ${e.status} ${e.statusText}. ${e.details || e.message || ''}`.trim();
+      } else if (e.response && e.response.data && typeof e.response.data === 'object') {
+        // Tipico per errori Axios con payload di errore
+        aiErrorMessage = `Errore AI: ${JSON.stringify(e.response.data)}. ${e.message || ''}`.trim();
+      } else if (e.name && e.message) {
+        // Errore standard JavaScript
+        aiErrorMessage = `${e.name}: ${e.message}`;
+      }
+
       return { 
-        processedTitle: extractedTitle, 
-        processedContent: extractedBody, 
+        processedTitle: extractedTitle, // Restituisce il titolo estratto anche se l'AI fallisce
+        processedContent: extractedBody, // Restituisce il contenuto estratto anche se l'AI fallisce
         metaDescription: '',
         seoKeywords: [],
         originalUrlScraped: url,
         extractedImageUrl,
-        error: `Contenuto estratto (via proxy), ma l'elaborazione AI è fallita: ${e.message}` 
+        error: `Contenuto estratto, ma l'elaborazione AI è fallita. Dettagli: ${aiErrorMessage}` 
       };
     }
   }
 );
+
