@@ -25,7 +25,8 @@ async function getStaticPostBySlug(slug: string): Promise<Post | undefined> {
 }
 
 export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
-  const post = await getStaticPostBySlug(params.slug);
+  const { slug } = await params;
+  const post = await getStaticPostBySlug(slug);
 
   if (!post) {
     return {
@@ -61,5 +62,6 @@ export default async function SinglePostPage({ params }: PostPageProps) {
   // but it's good for a quick check or if client-side fetching fails.
   // For now, PostPageClientContent will handle fetching from context.
 
-  return <PostPageClientContent slug={params.slug} adminEmail={ADMIN_EMAIL} />;
+  const { slug } = await params;
+  return <PostPageClientContent slug={slug} adminEmail={ADMIN_EMAIL} />;
 }
